@@ -37,7 +37,7 @@ public class NHttpServer {
 
         @Override
         public void incomingConnection(NSocket nsc) {
-            log.log(Level.FINE,"Incoming server connection");
+            //log.log(Level.FINE,"Incoming server connection");
             final NSessionInputBuffer buffer=new NSessionInputBuffer(100);
             final DefaultHttpRequestParser parser=new DefaultHttpRequestParser(buffer);
             

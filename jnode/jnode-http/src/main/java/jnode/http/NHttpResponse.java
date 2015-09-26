@@ -43,28 +43,38 @@ public class NHttpResponse {
         if(isHeaderSent) throw new IllegalStateException("Header already sent");
         bhr.setHeader(key, value);
     }
-    private void sendHeader() {
-        if(isHeaderSent) return;
+    private StringBuilder sendHeader() {
         StringBuilder sb=new StringBuilder();
         sb.append(bhr.getStatusLine().toString()).append("\n");
         HeaderIterator it = bhr.headerIterator();
-
         while (it.hasNext()) {
             sb.append(it.nextHeader().toString()).append("\n");
         }
-        sb.append("\n");
-        sock.write(sb.toString());
         isHeaderSent=true;
+        return sb;
     }
     public void write(String data) {
-        if(!isHeaderSent) sendHeader();
-        sock.write(data);
+        
+        if(!isHeaderSent) {
+            StringBuilder sb=sendHeader();
+            sb.append(data);
+            sock.write(sb.toString());
+        } else {
+            sock.write(data);
+        }
+        
     }
     public void end(String data) {
         write(data);
         end();
     }
     public void end() {
-        sock.onDrain(()->{sock.close();});
+        if(sock.pendingData()) {
+            
+            sock.onDrain(()->{sock.close();});
+        } else {
+            sock.close();
+        }
+        
     }
 }

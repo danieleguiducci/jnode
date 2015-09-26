@@ -19,7 +19,7 @@ public class BaseHttpServer {
         LogManager.getLogManager().readConfiguration(ClassLoader.getSystemResourceAsStream("logging.properties"));
         log.fine("I'm starting the http server");
         NHttpServer nhs=Http.createServer((req, resp)->{
-            log.log(Level.FINE,"Http request incoming. Url:{0}",req.getRequestLine().getUri());
+            //log.log(Level.FINE,"Http request incoming. Url:{0}",req.getRequestLine().getUri());
             resp.addHeader("Content-Type","text/plain");
             resp.end("Hello world!");
         });

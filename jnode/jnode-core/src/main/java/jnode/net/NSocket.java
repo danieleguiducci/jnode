@@ -6,6 +6,9 @@
 package jnode.net;
 
 import java.io.IOException;
+import java.net.SocketOption;
+import java.net.SocketOptions;
+import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
@@ -38,7 +41,9 @@ public class NSocket {
         sc.configureBlocking(false);
         this.sc = sc;
         this.jnode=jnode;
+        sc.setOption(StandardSocketOptions.TCP_NODELAY,true);
         sk=jnode.register(sc,  SelectionKey.OP_READ, new SocketChannelEvent());
+        
     }
 
     public void onError(OnErrorHandler handler) {
@@ -109,10 +114,25 @@ public class NSocket {
             _onError(new IOException("Sk is not valid"));
             return;
         }
-        sendingBuffer.add(bb);
-        sk.interestOps(sk.interestOps() | SelectionKey.OP_WRITE);
+        if(sendingBuffer.isEmpty()) {
+            try {
+                sc.write(bb);
+            } catch (IOException ex) {
+                sk.cancel();
+                sendConnectionDown();
+            }
+        }
+        if(bb.hasRemaining()) {
+            sendingBuffer.add(bb);
+            sk.interestOps(sk.interestOps() | SelectionKey.OP_WRITE);
+        } else {
+            _onDrain();
+        }
+        
     }
-
+    public boolean pendingData () {
+        return (!this.sendingBuffer.isEmpty()) | sk.isWritable();
+    }
     private void _onClose() {
         if (closeHanlder == null) {
             return;
@@ -154,7 +174,7 @@ public class NSocket {
             drainHandler.onDrain();
         } catch (Throwable t) {
             log.log(Level.SEVERE, "Uncatched error", t);
-            ;
+            
         }
     }
 
@@ -192,13 +212,11 @@ public class NSocket {
                     }
                     if (sendingBuffer.isEmpty()) {
                         sk.interestOps(sk.interestOps() & (~SelectionKey.OP_WRITE));
-                        if (drainHandler != null) {
-                            drainHandler.onDrain();
-                        }
+                        _onDrain();
                     }
                 } catch (IOException e) {
                     sk.cancel();
-                    _onDrain();
+                    sendConnectionDown();
                 }
             }
         }
