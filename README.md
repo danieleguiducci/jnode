@@ -1,9 +1,10 @@
 # jnode
 ```java
-NServerSocketChannel nss = Loop.getLoop().createServer(socket -> {
-    System.out.println("Incoming connection");
-    socket.onData((ByteBuffer data) -> {
-        String string = new String(data.array(), 0, data.remaining());
+NServerSocket nss = Net.createServer((jnode.net.NSocket socket) -> {
+    log.fine("Incoming connection");
+    socket.write("Welcome on the Echo Server\n\r");
+    socket.onData(sock -> {
+        ByteBuffer data=sock.read();
         data.flip();
         socket.write(data);
     });
@@ -22,5 +23,23 @@ nss.listen(54321).handle((ok, ex) -> {
 nss.onError(ex -> {
     log.log(Level.SEVERE, "Errore on accepting connection ", ex);
 });
-Loop.getLoop().loop();
+JNodeCore.get().loop();
+```
+
+
+```java
+NHttpServer nhs=Http.createServer((req, resp)->{
+    log.log(Level.FINE,"Http request incoming. Url:{0}",req.getRequestLine().getUri());
+    resp.addHeader("Content-Type","text/plain");
+    resp.end("Hello world!");
+});
+nhs.listen(80).whenComplete((ok, ex)->{
+    if(ex!=null) {
+        log.log(Level.SEVERE, "Error binding to port ",ex);
+    }
+});
+nhs.onError(ex -> {
+    log.log(Level.SEVERE, "Socket error ",ex);
+});
+JNodeCore.get().loop();
 ```

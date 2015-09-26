@@ -3,15 +3,13 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package jnode.core.net;
-
-import java.nio.ByteBuffer;
+package jnode.net;
 
 /**
  *
  * @author daniele
  */
 @FunctionalInterface
-public interface OnDataHandler {
-    void onDataIncoming(ByteBuffer data);
+public interface onDrainHandler {
+    void onDrain();
 }

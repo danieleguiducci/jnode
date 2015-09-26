@@ -3,17 +3,15 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package jnode.core.net;
-
-import jnode.core.Loop.NSocketChannel;
+package jnode.net;
 
 /**
  *
  * @author daniele
  */
 @FunctionalInterface
-public interface NSocketServerListener {
+public interface NSocketServerHandler {
 
-    public void incomingConnection(NSocketChannel nsc);
+    public void incomingConnection(NSocket nsc);
     
 }

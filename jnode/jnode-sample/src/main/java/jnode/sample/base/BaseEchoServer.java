@@ -10,8 +10,9 @@ import java.nio.ByteBuffer;
 import java.util.logging.Level;
 import java.util.logging.LogManager;
 import java.util.logging.Logger;
-import jnode.core.Loop;
-import jnode.core.Loop.NServerSocketChannel;
+import jnode.core.JNodeCore;
+import jnode.net.NServerSocket;
+import jnode.net.Net;
 
 /**
  *
@@ -24,13 +25,13 @@ public class BaseEchoServer {
     public static void main(String arg[]) throws IOException {
         LogManager.getLogManager().readConfiguration(ClassLoader.getSystemResourceAsStream("logging.properties"));
         log.fine("I'm starting the echo server");
-        NServerSocketChannel nss = Loop.getLoop().createServer(socket -> {
-            System.out.println("Incoming connection");
-            socket.onData((ByteBuffer data) -> {
-                String string = new String(data.array(), 0, data.remaining());
+        NServerSocket nss = Net.createServer((jnode.net.NSocket socket) -> {
+            log.fine("Incoming connection");
+            socket.write("Welcome on the Echo Server\n\r");
+            socket.onData(sock -> {
+                ByteBuffer data=sock.read();
                 data.flip();
                 socket.write(data);
-                log.log(Level.FINE, "Incoming data:{0}", string);
             });
             socket.onClose(() -> {
                 log.log(Level.FINE, "Connection lost");
@@ -47,7 +48,7 @@ public class BaseEchoServer {
         nss.onError(ex -> {
             log.log(Level.SEVERE, "Errore on accepting connection ", ex);
         });
-        Loop.getLoop().loop();
+        JNodeCore.get().loop();
     }
 
 }

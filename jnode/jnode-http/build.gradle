@@ -10,7 +10,7 @@
 // prefer. In this case NetBeans will not add these tasks but you may rely on
 // your own implementation.
 if (!hasProperty('mainClass')) {
-    ext.mainClass = 'jnode.sample.http.BaseHttpServer'
+    ext.mainClass = ''
 }
 
 dependencies {
@@ -22,5 +22,6 @@ dependencies {
     // You can read more about how to add dependency here:
     //   http://www.gradle.org/docs/current/userguide/dependency_management.html#sec:how_to_declare_your_dependencies
     compile project(':jnode-core')
-    compile project(':jnode-http')
+    compile 'org.apache.httpcomponents:httpcore-nio:4.4.3'
+
 }

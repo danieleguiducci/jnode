@@ -3,13 +3,15 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package jnode.core.net;
+package jnode.http;
+
 
 /**
  *
  * @author daniele
  */
-@FunctionalInterface
-public interface OnErrorHandler {
-    void onError(Exception e);
+public class Http {
+    public static NHttpServer createServer(NHttpServerHandler listener) {
+        return new NHttpServer(listener);
+    }
 }
