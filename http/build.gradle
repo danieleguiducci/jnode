@@ -21,7 +21,7 @@ dependencies {
     //
     // You can read more about how to add dependency here:
     //   http://www.gradle.org/docs/current/userguide/dependency_management.html#sec:how_to_declare_your_dependencies
-    compile project(':jnode-core')
+    compile project(':core')
     compile 'org.apache.httpcomponents:httpcore-nio:4.4.3'
 
 }

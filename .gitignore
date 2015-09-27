@@ -11,7 +11,7 @@
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
 /jnode-core/.nb-gradle/
-/jnode/.nb-gradle/
+.nb-gradle
 /jnode/jnode-core/build/
 
 .gradle
