@@ -3,13 +3,11 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package jnode.http;
+package org.jnode.http;
 
-import java.io.IOException;
-import java.nio.channels.ReadableByteChannel;
 import java.nio.charset.Charset;
 import java.nio.charset.CharsetDecoder;
-import jnode.net.NSocket;
+import org.jnode.net.NSocket;
 import org.apache.http.config.MessageConstraints;
 import org.apache.http.impl.nio.reactor.SessionInputBufferImpl;
 import org.apache.http.nio.util.ByteBufferAllocator;

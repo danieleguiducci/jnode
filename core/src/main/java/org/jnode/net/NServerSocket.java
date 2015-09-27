@@ -3,8 +3,9 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package jnode.net;
+package org.jnode.net;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.SelectionKey;
@@ -13,21 +14,21 @@ import java.nio.channels.SocketChannel;
 import java.util.concurrent.CompletableFuture;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import jnode.core.JNodeCore;
-import jnode.net.NSocketServerHandler;
-import jnode.net.OnErrorHandler;
+import org.jnode.core.JNodeCore;
+import org.slf4j.LoggerFactory;
 
 /**
  *
  * @author daniele
  */
-public class NServerSocket {
-    private static final Logger log = Logger.getLogger(NServerSocket.class.getName());
+public class NServerSocket implements Closeable{
+    private final static org.slf4j.Logger log = LoggerFactory.getLogger(NServerSocket.class);
     private boolean isBound = false;
     private ServerSocketChannel ssc;
     private OnErrorHandler errorHandler;
     private NSocketServerHandler listener;
     private JNodeCore jnode;
+    private SelectionKey sk;
     protected NServerSocket(JNodeCore jnode,NSocketServerHandler listener) {
         if (listener == null) {
             throw new IllegalArgumentException("Listener can't be null");
@@ -43,18 +44,14 @@ public class NServerSocket {
             return cf;
         }
         try {
-            log.log(Level.FINEST, "Creating socket server");
             ServerSocketChannel ssc = ServerSocketChannel.open();
             ssc.configureBlocking(false);
             ssc.socket().bind(new InetSocketAddress(port));
-            log.log(Level.FINEST, "Registering on selector");
-            jnode.register(ssc, SelectionKey.OP_ACCEPT, new ServerChannelEvent());
+            sk=jnode.register(ssc, SelectionKey.OP_ACCEPT, new ServerChannelEvent());
             this.ssc = ssc;
             isBound = true;
-            log.log(Level.FINE, "Server is created on port {0}", port);
             cf.complete(this);
         } catch (IOException e) {
-            log.log(Level.WARNING, "Creation server error", e);
             cf.completeExceptionally(e);
         }
         return cf;
@@ -64,6 +61,24 @@ public class NServerSocket {
         this.errorHandler = handler;
     }
 
+    @Override
+    public void close()  {
+        if(ssc.isOpen() && sk.isValid()) {
+            try {
+                ssc.close();
+            } catch (IOException ex) {
+                jnode.schedule(()->{_onError(ex);});
+            }
+        }
+    }
+    private void _onError(Exception bb) {
+        if (errorHandler == null) return;
+        try {
+            errorHandler.onError(bb);
+        } catch (Throwable t) {
+            log.error( "Uncatched error", t);
+        }
+    }
     private class ServerChannelEvent implements JNodeCore.ChannelEvent {
 
         @Override
@@ -75,7 +90,7 @@ public class NServerSocket {
                     try {
                         listener.incomingConnection(nsc);
                     } catch (Throwable t) {
-                        System.out.println("Eccezione del listener" + t.getMessage());
+                        log.error("Exception not handle",t);
                     }
                 } catch (IOException ex) {
                     if (errorHandler != null) {

@@ -3,15 +3,17 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package jnode.http;
+package org.jnode.net;
 
+import org.jnode.core.JNodeCore;
 
 /**
  *
  * @author daniele
  */
-public class Http {
-    public static NHttpServer createServer(NHttpServerHandler listener) {
-        return new NHttpServer(listener);
+public class Net {
+    public static NServerSocket createServer(NSocketServerHandler listener) {
+        return new NServerSocket(JNodeCore.get(), listener);
     }
+    
 }

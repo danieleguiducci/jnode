@@ -3,15 +3,15 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package jnode.net;
+package org.jnode.http;
 
-import java.nio.ByteBuffer;
 
 /**
  *
  * @author daniele
  */
-@FunctionalInterface
-public interface OnDataHandler {
-    void onDataIncoming(NSocket sock);
+public class Http {
+    public static NHttpServer createServer(NHttpServerHandler listener) {
+        return new NHttpServer(listener);
+    }
 }

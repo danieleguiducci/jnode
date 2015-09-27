@@ -3,27 +3,23 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package jnode.http;
+package org.jnode.http;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.UnsupportedEncodingException;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import jnode.net.NSocket;
+import org.jnode.net.NSocket;
 import org.apache.http.HttpStatus;
 import org.apache.http.HttpVersion;
 import org.apache.http.message.BasicHttpResponse;
 import org.apache.http.Header;
 import org.apache.http.HeaderIterator;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.util.EntityUtils;
+import org.jnode.core.JNodeCore;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 /**
  *
  * @author daniele
  */
 public class NHttpResponse {
-    private static final Logger log = Logger.getLogger(NHttpResponse.class.getName());
+    private final static Logger log = LoggerFactory.getLogger(NHttpResponse.class);
     private final NSocket sock;
     private final BasicHttpResponse bhr;
     private boolean isHeaderSent=false;
@@ -50,6 +46,7 @@ public class NHttpResponse {
         while (it.hasNext()) {
             sb.append(it.nextHeader().toString()).append("\n");
         }
+        sb.append("\n");
         isHeaderSent=true;
         return sb;
     }

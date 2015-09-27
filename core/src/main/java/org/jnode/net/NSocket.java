@@ -3,31 +3,28 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package jnode.net;
+package org.jnode.net;
 
+import java.io.Closeable;
 import java.io.IOException;
-import java.net.SocketOption;
-import java.net.SocketOptions;
 import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
+import java.nio.charset.Charset;
+import java.nio.charset.CharsetEncoder;
 import java.util.LinkedList;
 import java.util.concurrent.CompletableFuture;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import jnode.core.JNodeCore;
-import jnode.net.OnCloseHandler;
-import jnode.net.OnDataHandler;
-import jnode.net.OnErrorHandler;
-import jnode.net.onDrainHandler;
+import org.jnode.core.JNodeCore;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
  * @author daniele
  */
-public class NSocket {
-    private static final Logger log = Logger.getLogger(NSocket.class.getName());
+public class NSocket implements Closeable{
+    private final static Logger log = LoggerFactory.getLogger(JNodeCore.class);
     private final SocketChannel sc;
     private OnErrorHandler errorHandler;
     private OnDataHandler dataHandler;
@@ -62,16 +59,14 @@ public class NSocket {
         this.drainHandler = handler;
     }
 
-    public CompletableFuture close() {
-        CompletableFuture cf = new CompletableFuture<>();
+    @Override
+    public void close() {
         sendConnectionDown();
         try {
-            
             sc.close();
         } catch (IOException ex) {
             jnode.schedule(()-> {_onError(ex);}) ;
         }
-        return cf;
     }
     private void sendConnectionDown() {
         if(!isConnected) return;
@@ -140,7 +135,7 @@ public class NSocket {
         try {
             closeHanlder.onClose();
         } catch (Throwable t) {
-            log.log(Level.SEVERE, "Uncatched error", t);
+            log.error("Uncatched error", t);
         }
     }
 
@@ -151,7 +146,7 @@ public class NSocket {
         try {
             errorHandler.onError(bb);
         } catch (Throwable t) {
-            log.log(Level.SEVERE, "Uncatched error", t);
+            log.error( "Uncatched error", t);
         }
     }
 
@@ -162,7 +157,7 @@ public class NSocket {
         try {
             dataHandler.onDataIncoming(this);
         } catch (Throwable t) {
-            log.log(Level.SEVERE, "Uncatched error", t);
+            log.error( "Uncatched error", t);
         }
     }
     
@@ -173,7 +168,7 @@ public class NSocket {
         try {
             drainHandler.onDrain();
         } catch (Throwable t) {
-            log.log(Level.SEVERE, "Uncatched error", t);
+            log.error( "Uncatched error", t);
             
         }
     }

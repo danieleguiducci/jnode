@@ -3,28 +3,28 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package jnode.http;
+package org.jnode.http;
 
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import jnode.net.NServerSocket;
-import jnode.net.NSocket;
-import jnode.net.NSocketServerHandler;
-import jnode.net.Net;
-import jnode.net.OnErrorHandler;
+import org.jnode.net.NServerSocket;
+import org.jnode.net.NSocket;
+import org.jnode.net.NSocketServerHandler;
+import org.jnode.net.Net;
+import org.jnode.net.OnErrorHandler;
 import org.apache.http.HttpException;
 import org.apache.http.ProtocolException;
 import org.apache.http.impl.nio.codecs.DefaultHttpRequestParser;
 import org.apache.http.message.BasicHttpRequest;
+import org.slf4j.LoggerFactory;
 
 /**
  *
  * @author daniele
  */
 public class NHttpServer {
-    private static final Logger log = Logger.getLogger(NHttpServer.class.getName());
+    
+    private final static org.slf4j.Logger log = LoggerFactory.getLogger(NHttpServer.class);
     private NHttpServerHandler handler;
     private NServerSocket server;
     private OnErrorHandler errorHandler;
@@ -38,20 +38,19 @@ public class NHttpServer {
         @Override
         public void incomingConnection(NSocket nsc) {
             //log.log(Level.FINE,"Incoming server connection");
-            final NSessionInputBuffer buffer=new NSessionInputBuffer(100);
+            final NSessionInputBuffer buffer=new NSessionInputBuffer(1000);
             final DefaultHttpRequestParser parser=new DefaultHttpRequestParser(buffer);
             
-            nsc.onClose(()->{
-                
-            });
             nsc.onData(sock->{
-                buffer.fill(nsc);
+                int letti=buffer.fill(nsc);
                 try {
                     Object o=parser.parse();
                     
                     if(o!=null) {
                         NHttpResponse resp=new NHttpResponse(sock);
                         handler.incomingRequest((BasicHttpRequest)o, resp);
+                    } else {
+                        log.trace("Dati non sufficenti {0}",letti);
                     }
                 } catch(ProtocolException ex) {
                     sock.close();
@@ -75,7 +74,7 @@ public class NHttpServer {
         try {
             errorHandler.onError(bb);
         } catch (Throwable t) {
-            log.log(Level.SEVERE, "Uncatched error", t);
+            log.error("Uncatched error", t);
         }
     }
     

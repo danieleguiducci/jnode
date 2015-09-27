@@ -3,13 +3,13 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package jnode.net;
+package org.jnode.net;
 
 /**
  *
  * @author daniele
  */
 @FunctionalInterface
-public interface OnCloseHandler {
-    void onClose();
+public interface onDrainHandler {
+    void onDrain();
 }

@@ -3,13 +3,15 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package jnode.net;
+package org.jnode.net;
+
+import java.nio.ByteBuffer;
 
 /**
  *
  * @author daniele
  */
 @FunctionalInterface
-public interface OnErrorHandler {
-    void onError(Exception e);
+public interface OnDataHandler {
+    void onDataIncoming(NSocket sock);
 }

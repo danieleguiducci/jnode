@@ -3,35 +3,22 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package jnode.core;
+package org.jnode.core;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.nio.ByteBuffer;
 import java.nio.channels.SelectableChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
-import java.nio.channels.ServerSocketChannel;
-import java.nio.channels.SocketChannel;
 import java.util.Iterator;
 import java.util.LinkedList;
-import java.util.concurrent.CompletableFuture;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import javax.imageio.IIOException;
-import jnode.net.NSocketServerHandler;
-import jnode.net.OnCloseHandler;
-import jnode.net.OnDataHandler;
-import jnode.net.OnErrorHandler;
-import jnode.net.onDrainHandler;
-
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 /**
  *
  * @author daniele
  */
 public class JNodeCore {
-
-    private static final Logger log = Logger.getLogger(JNodeCore.class.getName());
+    private final static Logger log = LoggerFactory.getLogger(JNodeCore.class);
     private static JNodeCore sampleJNode;
     private final Selector selector;
     private boolean isRunning = true;
@@ -41,7 +28,8 @@ public class JNodeCore {
         try {
             sampleJNode = new JNodeCore();
         } catch (IOException ex) {
-            log.log(Level.SEVERE, null, ex);
+            log.error("Can't start jnode",ex);
+            throw new IllegalStateException(ex);
         }
 
     }
@@ -74,12 +62,13 @@ public class JNodeCore {
                     try {
                         it2.next().run();
                     } catch(Throwable t) {
-                        log.log(Level.SEVERE, "Exception not manager", t);
+                        log.error("uncatched exception in main loop",t);
                     }
                     it2.remove();
                 }
             } catch (IOException ex) {
-                log.log(Level.SEVERE, "Fatal error", ex);
+                log.error("Fatal error",ex);
+                throw new IllegalStateException(ex);
             }
         }
     }

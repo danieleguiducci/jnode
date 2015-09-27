@@ -3,15 +3,15 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package jnode.http;
-
-import org.apache.http.message.BasicHttpRequest;
+package org.jnode.net;
 
 /**
  *
  * @author daniele
  */
 @FunctionalInterface
-public interface NHttpServerHandler {
-    public void incomingRequest(BasicHttpRequest req, NHttpResponse res);
+public interface NSocketServerHandler {
+
+    public void incomingConnection(NSocket nsc);
+    
 }
