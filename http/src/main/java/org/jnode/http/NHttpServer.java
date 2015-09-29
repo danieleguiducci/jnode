@@ -16,6 +16,7 @@ import org.apache.http.HttpException;
 import org.apache.http.ProtocolException;
 import org.apache.http.impl.nio.codecs.DefaultHttpRequestParser;
 import org.apache.http.message.BasicHttpRequest;
+import org.jnode.core.JNode;
 import org.slf4j.LoggerFactory;
 
 /**
@@ -37,7 +38,6 @@ public class NHttpServer {
 
         @Override
         public void incomingConnection(NSocket nsc) {
-            //log.log(Level.FINE,"Incoming server connection");
             final NSessionInputBuffer buffer=new NSessionInputBuffer(1000);
             final DefaultHttpRequestParser parser=new DefaultHttpRequestParser(buffer);
             
@@ -49,9 +49,7 @@ public class NHttpServer {
                     if(o!=null) {
                         NHttpResponse resp=new NHttpResponse(sock);
                         handler.incomingRequest((BasicHttpRequest)o, resp);
-                    } else {
-                        log.trace("Dati non sufficenti {0}",letti);
-                    }
+                    } 
                 } catch(ProtocolException ex) {
                     sock.close();
                     _onError(ex);
@@ -64,13 +62,19 @@ public class NHttpServer {
 
    
     }
-    public CompletableFuture listen(int port) {
-        return server.listen(port);
+    public JNode getJNode() {
+        return this.server.getJNode();
+    }
+    public int getLocalPort() {
+        return this.server.getLocalPort();
+    }
+    public CompletableFuture<NHttpServer> listen(int port) {
+        
+        return server.listen(port).thenCompose((el)->CompletableFuture.completedFuture(this));
     }
     private void _onError(Exception bb) {
-        if (errorHandler == null) {
+        if (errorHandler == null) 
             return;
-        }
         try {
             errorHandler.onError(bb);
         } catch (Throwable t) {

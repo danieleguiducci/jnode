@@ -12,46 +12,70 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.CompletableFuture;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import org.jnode.core.JNodeCore;
+import org.jnode.core.JNode;
+import org.jnode.core.JNode.RegisterResult;
+import org.jnode.core.Looper;
 import org.slf4j.LoggerFactory;
+import org.apache.commons.io.IOUtils;
 
 /**
  *
  * @author daniele
  */
-public class NServerSocket implements Closeable{
+public class NServerSocket implements Closeable {
+
     private final static org.slf4j.Logger log = LoggerFactory.getLogger(NServerSocket.class);
     private boolean isBound = false;
     private ServerSocketChannel ssc;
     private OnErrorHandler errorHandler;
     private NSocketServerHandler listener;
-    private JNodeCore jnode;
+    private JNode jnode;
+    private Looper looper;
     private SelectionKey sk;
-    protected NServerSocket(JNodeCore jnode,NSocketServerHandler listener) {
+
+    protected NServerSocket(JNode jnode, NSocketServerHandler listener) {
         if (listener == null) {
             throw new IllegalArgumentException("Listener can't be null");
         }
-        this.jnode=jnode;
+        this.jnode = jnode;
         this.listener = listener;
     }
 
-    public CompletableFuture listen(int port) {
-        CompletableFuture cf = new CompletableFuture<>();
+    public CompletableFuture<NServerSocket> listen(int port) {
+
         if (isBound) {
+            CompletableFuture cf = new CompletableFuture<>();
             cf.completeExceptionally(new IllegalStateException("Server already bound"));
             return cf;
         }
+        return createServerChannel(port)
+                .thenCompose((socketChannel) -> {
+                    this.ssc = socketChannel;
+                    return jnode.register(socketChannel, SelectionKey.OP_ACCEPT, new ServerChannelEvent());
+                }).whenComplete((ok, ex) -> {
+                    if (ex != null && ssc != null && ssc.isOpen())
+                        IOUtils.closeQuietly(ssc);
+                }).thenCompose((RegisterResult rr) -> {
+                    sk = rr.sk;
+                    looper = rr.assignedLooper;
+                    isBound = true;
+                    return CompletableFuture.completedFuture(this);
+                });
+    }
+    public JNode getJNode() {
+        return this.jnode;
+    }
+    public int getLocalPort() {
+        return ssc.socket().getLocalPort();
+    }
+    private CompletableFuture<ServerSocketChannel> createServerChannel(int port) {
+        CompletableFuture cf = new CompletableFuture<>();
         try {
             ServerSocketChannel ssc = ServerSocketChannel.open();
             ssc.configureBlocking(false);
             ssc.socket().bind(new InetSocketAddress(port));
-            sk=jnode.register(ssc, SelectionKey.OP_ACCEPT, new ServerChannelEvent());
-            this.ssc = ssc;
-            isBound = true;
-            cf.complete(this);
-        } catch (IOException e) {
+            cf.complete(ssc);
+        } catch (Exception e) {
             cf.completeExceptionally(e);
         }
         return cf;
@@ -62,43 +86,52 @@ public class NServerSocket implements Closeable{
     }
 
     @Override
-    public void close()  {
-        if(ssc.isOpen() && sk.isValid()) {
+    public void close() {
+        if (ssc.isOpen() && sk.isValid()) {
             try {
                 ssc.close();
             } catch (IOException ex) {
-                jnode.schedule(()->{_onError(ex);});
+                looper.schedule(() -> {
+                    _onError(ex);
+                });
             }
         }
     }
-    private void _onError(Exception bb) {
-        if (errorHandler == null) return;
+
+    private void _onError(Throwable bb) {
+        if (errorHandler == null)
+            return;
         try {
             errorHandler.onError(bb);
         } catch (Throwable t) {
-            log.error( "Uncatched error", t);
+            log.error("Uncatched error", t);
         }
     }
-    private class ServerChannelEvent implements JNodeCore.ChannelEvent {
+
+    private class ServerChannelEvent implements Looper.ChannelEvent {
 
         @Override
         public void onEvent(SelectionKey a) {
             if (a.isAcceptable()) {
                 try {
                     SocketChannel sc = ssc.accept();
-                    NSocket nsc = new NSocket(jnode,sc);
-                    try {
-                        listener.incomingConnection(nsc);
-                    } catch (Throwable t) {
-                        log.error("Exception not handle",t);
-                    }
+                    NSocket nsc = new NSocket(jnode);
+                    nsc.setSocketChannel(sc).thenAccept((elem)-> {
+                        try {
+                            listener.incomingConnection(nsc);
+                        } catch (Throwable t) {
+                            log.error("Exception not handle", t);
+                        }
+                    }).whenComplete( (ok,ex) -> {
+                        if(ex!=null)
+                            _onError(ex);
+                    });
+                    
                 } catch (IOException ex) {
-                    if (errorHandler != null) {
-                        errorHandler.onError(ex);
-                    }
+                    _onError(ex);
                 }
             }
         }
     }
-    
+
 }

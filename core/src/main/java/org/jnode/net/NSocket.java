@@ -15,7 +15,9 @@ import java.nio.charset.Charset;
 import java.nio.charset.CharsetEncoder;
 import java.util.LinkedList;
 import java.util.concurrent.CompletableFuture;
-import org.jnode.core.JNodeCore;
+import org.jnode.core.JNode;
+import org.jnode.core.JNode.RegisterResult;
+import org.jnode.core.Looper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -24,25 +26,40 @@ import org.slf4j.LoggerFactory;
  * @author daniele
  */
 public class NSocket implements Closeable{
-    private final static Logger log = LoggerFactory.getLogger(JNodeCore.class);
-    private final SocketChannel sc;
+    private final static Logger log = LoggerFactory.getLogger(Looper.class);
+    private SocketChannel sc;
     private OnErrorHandler errorHandler;
     private OnDataHandler dataHandler;
     private onDrainHandler drainHandler;
     private OnCloseHandler closeHanlder;
-    private final SelectionKey sk;
+    private SelectionKey sk;
     private final LinkedList<ByteBuffer> sendingBuffer = new LinkedList<>();
-    private final JNodeCore jnode;
+    private final JNode jnode;
+    private Looper looper;
     private boolean isConnected=true;
-    protected NSocket(JNodeCore jnode,SocketChannel sc) throws IOException {
-        sc.configureBlocking(false);
-        this.sc = sc;
+    protected NSocket(JNode jnode) {
         this.jnode=jnode;
-        sc.setOption(StandardSocketOptions.TCP_NODELAY,true);
-        sk=jnode.register(sc,  SelectionKey.OP_READ, new SocketChannelEvent());
+    }
+    private CompletableFuture<SocketChannel> configure(SocketChannel sc) {
+        CompletableFuture<SocketChannel> cf=new CompletableFuture<>();
+        try {
+            sc.configureBlocking(false);
+            sc.setOption(StandardSocketOptions.TCP_NODELAY,true);
+            cf.complete(sc);
+        } catch(Exception e){
+            cf.completeExceptionally(e);
+        }
+        return cf;
+    }
+    protected CompletableFuture<Void> setSocketChannel(SocketChannel sc) {
+        this.sc = sc;
+        return configure(sc).thenCompose((sock)->jnode.register(sc,  SelectionKey.OP_READ, new SocketChannelEvent()))
+                .thenAccept((RegisterResult rr) -> {
+                    sk=rr.sk;
+                    looper=rr.assignedLooper;
+                });
         
     }
-
     public void onError(OnErrorHandler handler) {
         this.errorHandler = handler;
     }
@@ -65,14 +82,14 @@ public class NSocket implements Closeable{
         try {
             sc.close();
         } catch (IOException ex) {
-            jnode.schedule(()-> {_onError(ex);}) ;
+            looper.schedule(()-> {_onError(ex);}) ;
         }
     }
     private void sendConnectionDown() {
         if(!isConnected) return;
         sk.cancel();
         isConnected=false;
-        jnode.schedule(()-> {_onClose();}) ;
+        looper.schedule(()-> {_onClose();}) ;
     }
     public ByteBuffer read() {
         ByteBuffer bb=ByteBuffer.allocate(128);
@@ -93,7 +110,7 @@ public class NSocket implements Closeable{
             }
             return readed;
         } catch (IOException ex) {
-            jnode.schedule(()-> { _onError(ex);}) ;
+            looper.schedule(()-> { _onError(ex);}) ;
             return 0;
         }
         
@@ -173,7 +190,7 @@ public class NSocket implements Closeable{
         }
     }
 
-    private class SocketChannelEvent implements JNodeCore.ChannelEvent {
+    private class SocketChannelEvent implements Looper.ChannelEvent {
 
         @Override
         public void onEvent(SelectionKey a) {

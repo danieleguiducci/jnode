@@ -11,5 +11,5 @@ package org.jnode.net;
  */
 @FunctionalInterface
 public interface OnErrorHandler {
-    void onError(Exception e);
+    void onError(Throwable e);
 }

@@ -7,7 +7,7 @@ package org.jnode.sample.base;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import org.jnode.core.JNodeCore;
+import org.jnode.core.Looper;
 import org.jnode.net.NServerSocket;
 import org.jnode.net.Net;
 import org.slf4j.Logger;
@@ -46,7 +46,7 @@ public class BaseEchoServer {
         nss.onError(ex -> {
             log.error("Errore on accepting connection ");
         });
-        JNodeCore.get().loop();
+
     }
 
 }

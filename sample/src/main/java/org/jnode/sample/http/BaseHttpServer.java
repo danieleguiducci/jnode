@@ -1,7 +1,7 @@
 package org.jnode.sample.http;
 
 import java.io.IOException;
-import org.jnode.core.JNodeCore;
+import org.jnode.core.Looper;
 import org.jnode.http.Http;
 import org.jnode.http.NHttpServer;
 import org.slf4j.Logger;
@@ -26,6 +26,6 @@ public class BaseHttpServer {
         nhs.onError(ex -> {
             log.error("Socket error ",ex);
         });
-        JNodeCore.get().loop();
+        Http.createServerStatus(0);
     }
 }

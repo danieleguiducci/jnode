@@ -5,7 +5,7 @@
  */
 package org.jnode.net;
 
-import org.jnode.core.JNodeCore;
+import org.jnode.core.JNode;
 
 /**
  *
@@ -13,7 +13,7 @@ import org.jnode.core.JNodeCore;
  */
 public class Net {
     public static NServerSocket createServer(NSocketServerHandler listener) {
-        return new NServerSocket(JNodeCore.get(), listener);
+        return new NServerSocket(JNode.get(), listener);
     }
     
 }

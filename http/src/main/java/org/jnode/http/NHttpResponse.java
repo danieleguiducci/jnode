@@ -11,7 +11,7 @@ import org.apache.http.HttpVersion;
 import org.apache.http.message.BasicHttpResponse;
 import org.apache.http.Header;
 import org.apache.http.HeaderIterator;
-import org.jnode.core.JNodeCore;
+import org.jnode.core.Looper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 /**
@@ -26,6 +26,7 @@ public class NHttpResponse {
     protected NHttpResponse(NSocket sock) {
         this.sock = sock;
         bhr=new BasicHttpResponse(HttpVersion.HTTP_1_1,HttpStatus.SC_OK, "OK");
+        bhr.addHeader("Transfer-Encoding","chunked");
     }
     public void setCode(int code) {
         if(isHeaderSent) throw new IllegalStateException("Header already sent");
@@ -39,8 +40,7 @@ public class NHttpResponse {
         if(isHeaderSent) throw new IllegalStateException("Header already sent");
         bhr.setHeader(key, value);
     }
-    private StringBuilder sendHeader() {
-        StringBuilder sb=new StringBuilder();
+    private StringBuilder sendHeader(StringBuilder sb) {
         sb.append(bhr.getStatusLine().toString()).append("\n");
         HeaderIterator it = bhr.headerIterator();
         while (it.hasNext()) {
@@ -50,19 +50,31 @@ public class NHttpResponse {
         isHeaderSent=true;
         return sb;
     }
-    public void write(String data) {
-        
-        if(!isHeaderSent) {
-            StringBuilder sb=sendHeader();
-            sb.append(data);
-            sock.write(sb.toString());
-        } else {
-            sock.write(data);
-        }
+    private StringBuilder compose(StringBuilder sb,String text) {
+        return sb.append(Integer.toHexString(text.getBytes().length)).append("\n").append(text).append("\n");
         
     }
+    private StringBuilder _write(StringBuilder sb,String data) {
+        if(!isHeaderSent) {
+            sendHeader(sb);
+            if(data.length()>0) compose(sb,data);
+        } else {
+            if(data.length()==0) return sb;
+            compose(sb,data);
+        }
+        return sb;
+    }
+    public void write(String data) {
+        // horrible, i know
+        StringBuilder sb=new StringBuilder();
+        _write(sb,data);
+        sock.write(sb.toString());
+    }
     public void end(String data) {
-        write(data);
+        StringBuilder sb=new StringBuilder();
+        _write(sb,data);
+        compose(sb,"");
+        sock.write(sb.toString());
         end();
     }
     public void end() {
