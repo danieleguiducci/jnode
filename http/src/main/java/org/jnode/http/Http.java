@@ -27,7 +27,8 @@ public class Http {
             StringBuilder sb=new StringBuilder();
             sb.append("<html><head><title>Server status and load</title></head><body>Server list:<br/><ul>");
             JNode.get().getLoopers().forEach(looper->{
-                sb.append("<li> Looper ID: ").append(looper.getId()).append(" Load:").append(looper.getLoadFactor()).append("</li>");
+                double load=Math.floor(looper.getLoadFactor()*1000.0)/10.0;
+                sb.append("<li> Looper ID: ").append(looper.getId()).append(" Load:").append(load).append("%</li>");
             });
             sb.append("</ul></body></html>");
             resp.end(sb.toString());

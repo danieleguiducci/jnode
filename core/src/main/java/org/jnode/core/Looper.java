@@ -68,7 +68,7 @@ public class Looper {
             while (isRunning) {
                 try {
                     long t0=System.nanoTime();
-                    selector.select();
+                    selector.select(700);
                     long t1=System.nanoTime();
                     Iterator<SelectionKey> it = selector.selectedKeys().iterator();
                     while (it.hasNext()) {
@@ -77,28 +77,29 @@ public class Looper {
                         ce.onEvent(sk);
                         it.remove();
                     }
-                    Iterator<Runnable> it2 = runnables.iterator();
-                    while (it2.hasNext()) {
+
+                    while (!runnables.isEmpty()) {
                         try {
-                            it2.next().run();
+                            runnables.poll().run();
                         } catch (Throwable t) {
                             log.error("uncatched exception in main loop", t);
                         }
-                        it2.remove();
                     }
                     long t2=System.nanoTime();
                     workTime+=t2-t1;
                     cyclesTime+=t2-t0;
                     if(cyclesTime>5e8) {// >half second
-                        double loadOnCycle=workTime/cyclesTime;
-                        if(cyclesTime>5e9) { // >5 seconds
+                        double loadOnCycle=workTime/((double)cyclesTime);
+                        if(cyclesTime>10e9) { // >5 seconds
+                            //log.debug(id+"] LOAD: >5 sec, uso il loadCycle: "+loadOnCycle+" workTime:"+workTime);
                             load=loadOnCycle;
                         } else {
-                            double seconds=(double)cyclesTime/1e9;
-                            double c=1-Math.pow(1.7, seconds);
-                            load=load*(1-c)+loadOnCycle*c;
-                            workTime=cyclesTime=0;
+                            double seconds=cyclesTime/(double)1e9;
+                            double c=1.0/Math.pow(1.3, seconds);
+                            load=load*c+loadOnCycle*(1.0-c);
+                            //log.debug(id+"] LOAD: <5 loadCycle: "+loadOnCycle+" c:"+c+" newLoad:"+load+" WorkTime:"+workTime);
                         }
+                        workTime=cyclesTime=0;
                     }
                     
                 } catch (IOException ex) {

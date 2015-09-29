@@ -23,7 +23,6 @@ nss.listen(54321).handle((ok, ex) -> {
 nss.onError(ex -> {
     log.log(Level.SEVERE, "Errore on accepting connection ", ex);
 });
-JNodeCore.get().loop();
 ```
 
 
@@ -41,5 +40,4 @@ nhs.listen(80).whenComplete((ok, ex)->{
 nhs.onError(ex -> {
     log.log(Level.SEVERE, "Socket error ",ex);
 });
-JNodeCore.get().loop();
 ```

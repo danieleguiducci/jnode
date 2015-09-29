@@ -5,6 +5,7 @@
  */
 package org.jnode.http;
 
+import java.nio.charset.Charset;
 import org.jnode.net.NSocket;
 import org.apache.http.HttpStatus;
 import org.apache.http.HttpVersion;
@@ -23,6 +24,7 @@ public class NHttpResponse {
     private final NSocket sock;
     private final BasicHttpResponse bhr;
     private boolean isHeaderSent=false;
+    private static final Charset charset=Charset.forName("utf-8");
     protected NHttpResponse(NSocket sock) {
         this.sock = sock;
         bhr=new BasicHttpResponse(HttpVersion.HTTP_1_1,HttpStatus.SC_OK, "OK");
@@ -51,7 +53,7 @@ public class NHttpResponse {
         return sb;
     }
     private StringBuilder compose(StringBuilder sb,String text) {
-        return sb.append(Integer.toHexString(text.getBytes().length)).append("\n").append(text).append("\n");
+        return sb.append(Integer.toHexString(text.getBytes(charset).length)).append("\n").append(text).append("\n");
         
     }
     private StringBuilder _write(StringBuilder sb,String data) {

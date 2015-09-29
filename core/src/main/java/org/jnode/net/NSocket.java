@@ -37,6 +37,7 @@ public class NSocket implements Closeable{
     private final JNode jnode;
     private Looper looper;
     private boolean isConnected=true;
+    private static final Charset charset=Charset.forName("utf-8");
     protected NSocket(JNode jnode) {
         this.jnode=jnode;
     }
@@ -116,7 +117,7 @@ public class NSocket implements Closeable{
         
     }
     public void write(String data) {
-        write(ByteBuffer.wrap(data.getBytes()));
+        write(ByteBuffer.wrap(data.getBytes(charset)));
     }
     public void write(ByteBuffer bb) {
         if (bb.remaining() == 0) {

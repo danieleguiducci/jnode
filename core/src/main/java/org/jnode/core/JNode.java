@@ -75,10 +75,9 @@ public class JNode {
         return Collections.unmodifiableList(Arrays.asList(loopers));
     }
     public CompletableFuture<RegisterResult> register(SelectableChannel sc, int ops, Looper.ChannelEvent cEvent) {
-        Arrays.sort(loopers, loadBalancer);
-        Looper l = loopers[0];
-        return l.register(sc, ops, cEvent).thenCompose((SelectionKey ret) -> {
-            return CompletableFuture.completedFuture(new RegisterResult(l, ret));
+        Looper looper=Arrays.stream(loopers).sorted(loadBalancer).findFirst().get();
+        return looper.register(sc, ops, cEvent).thenCompose((SelectionKey ret) -> {
+            return CompletableFuture.completedFuture(new RegisterResult(looper, ret));
         });
     }
 

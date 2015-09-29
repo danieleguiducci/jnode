@@ -1,7 +1,6 @@
 package org.jnode.sample.http;
 
 import java.io.IOException;
-import org.jnode.core.Looper;
 import org.jnode.http.Http;
 import org.jnode.http.NHttpServer;
 import org.slf4j.Logger;
@@ -14,9 +13,14 @@ public class BaseHttpServer {
         log.info("I'm starting the http server");
         
         NHttpServer nhs=Http.createServer((req, resp)->{
-            log.trace("Http request incoming. Url:{0}",req.getRequestLine().getUri());
-            resp.addHeader("Content-Type","text/plain");
-            resp.end("Hello world!");
+            //log.trace("Http request incoming. Url:{0}",req.getRequestLine().getUri());
+            resp.addHeader("Content-Type","text/html; charset=utf-8");
+            try {// Simulate some heavy work
+                Thread.sleep(200);
+            } catch (InterruptedException ex) {
+            }
+            resp.end("Hello world è!");
+            
         });
         nhs.listen(80).whenComplete((ok, ex)->{
             if(ex!=null) {
@@ -26,6 +30,7 @@ public class BaseHttpServer {
         nhs.onError(ex -> {
             log.error("Socket error ",ex);
         });
-        Http.createServerStatus(0);
+        // Check server load on port 8181
+        Http.createServerStatus(8181);
     }
 }
