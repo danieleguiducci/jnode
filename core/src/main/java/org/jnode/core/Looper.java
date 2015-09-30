@@ -11,8 +11,8 @@ import java.nio.channels.SelectableChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,8 +25,8 @@ public class Looper {
     private final static Logger log = LoggerFactory.getLogger(Looper.class);
     private final Selector selector;
     private boolean isRunning = true;
-    private final LinkedList<Runnable> runnables = new LinkedList<>();
-    private JNode jnode;
+    private final ConcurrentLinkedQueue<Runnable> runnables =  new ConcurrentLinkedQueue<>();
+    private final JNode jnode;
     private Thread thread;
     private long id;
     private double load=0;
@@ -43,6 +43,8 @@ public class Looper {
     }
 
     public void schedule(Runnable runnable) {
+        if(runnable==null)
+            throw new NullPointerException("Runnable can't be null");
         runnables.add(runnable);
         selector.wakeup();
     }
@@ -80,7 +82,10 @@ public class Looper {
 
                     while (!runnables.isEmpty()) {
                         try {
-                            runnables.poll().run();
+                            Runnable r=runnables.poll();
+                            if(r==null) 
+                                throw new NullPointerException("Null runnable.");
+                            r.run();
                         } catch (Throwable t) {
                             log.error("uncatched exception in main loop", t);
                         }
@@ -91,13 +96,11 @@ public class Looper {
                     if(cyclesTime>5e8) {// >half second
                         double loadOnCycle=workTime/((double)cyclesTime);
                         if(cyclesTime>10e9) { // >5 seconds
-                            //log.debug(id+"] LOAD: >5 sec, uso il loadCycle: "+loadOnCycle+" workTime:"+workTime);
                             load=loadOnCycle;
                         } else {
                             double seconds=cyclesTime/(double)1e9;
                             double c=1.0/Math.pow(1.3, seconds);
                             load=load*c+loadOnCycle*(1.0-c);
-                            //log.debug(id+"] LOAD: <5 loadCycle: "+loadOnCycle+" c:"+c+" newLoad:"+load+" WorkTime:"+workTime);
                         }
                         workTime=cyclesTime=0;
                     }
@@ -138,64 +141,5 @@ public class Looper {
     public interface ChannelEvent {
 
         void onEvent(SelectionKey a);
-    }
-    public class LooperKey {
-        private final SelectionKey sk;
-        private LooperKey(SelectionKey sk) {
-            this.sk=sk;
-        }
-
-        public SelectableChannel channel() {
-            return sk.channel();
-        }
-
-        public Selector selector() {
-            return sk.selector();
-        }
-
-        public boolean isValid() {
-            return sk.isValid();
-        }
-
-        public void cancel() {
-            sk.cancel();
-        }
-
-        public int interestOps() {
-            return sk.interestOps();
-        }
-
-        public SelectionKey interestOps(int ops) {
-            return sk.interestOps(ops);
-        }
-
-        public int readyOps() {
-            return sk.readyOps();
-        }
-
-        public final boolean isReadable() {
-            return sk.isReadable();
-        }
-
-        public final boolean isWritable() {
-            return sk.isWritable();
-        }
-
-        public final boolean isConnectable() {
-            return sk.isConnectable();
-        }
-
-        public final boolean isAcceptable() {
-            return sk.isAcceptable();
-        }
-
-        public final Object attach(Object ob) {
-            return sk.attach(ob);
-        }
-
-        public final Object attachment() {
-            return sk.attachment();
-        }
-        
     }
 }

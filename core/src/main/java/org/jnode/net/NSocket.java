@@ -12,7 +12,6 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.Charset;
-import java.nio.charset.CharsetEncoder;
 import java.util.LinkedList;
 import java.util.concurrent.CompletableFuture;
 import org.jnode.core.JNode;
@@ -76,9 +75,8 @@ public class NSocket implements Closeable{
     public void onDrain(onDrainHandler handler) {
         this.drainHandler = handler;
     }
-
-    @Override
-    public void close() {
+    
+    private void _close() {
         sendConnectionDown();
         try {
             sc.close();
@@ -86,17 +84,21 @@ public class NSocket implements Closeable{
             looper.schedule(()-> {_onError(ex);}) ;
         }
     }
+
+    @Override
+    public void close() {
+        if(Thread.currentThread().getId()==looper.getId())
+            _close();
+        else
+            looper.schedule(()->{this._close();});
+    }
     private void sendConnectionDown() {
         if(!isConnected) return;
         sk.cancel();
         isConnected=false;
         looper.schedule(()-> {_onClose();}) ;
     }
-    public ByteBuffer read() {
-        ByteBuffer bb=ByteBuffer.allocate(128);
-        int n=read(bb);
-        return bb;
-    }
+
     public int read(ByteBuffer bb)  {
         if(!isConnected) return 0;
         if(!sc.isConnected()) {
@@ -119,10 +121,9 @@ public class NSocket implements Closeable{
     public void write(String data) {
         write(ByteBuffer.wrap(data.getBytes(charset)));
     }
-    public void write(ByteBuffer bb) {
-        if (bb.remaining() == 0) {
+    private void _write(ByteBuffer bb) {
+        if (bb.remaining() == 0) 
             return;
-        }
         if (!sk.isValid()) {
             _onError(new IOException("Sk is not valid"));
             return;
@@ -131,8 +132,8 @@ public class NSocket implements Closeable{
             try {
                 sc.write(bb);
             } catch (IOException ex) {
-                sk.cancel();
                 sendConnectionDown();
+                return;
             }
         }
         if(bb.hasRemaining()) {
@@ -141,15 +142,20 @@ public class NSocket implements Closeable{
         } else {
             _onDrain();
         }
+    }
+    public void write(final ByteBuffer bb) {
+        if(Thread.currentThread().getId()==looper.getId())
+            _write(bb);
+        else
+            looper.schedule(() -> {this._write(bb);});
         
     }
     public boolean pendingData () {
-        return (!this.sendingBuffer.isEmpty()) | sk.isWritable();
+        return !this.sendingBuffer.isEmpty();
     }
     private void _onClose() {
-        if (closeHanlder == null) {
+        if (closeHanlder == null) 
             return;
-        }
         try {
             closeHanlder.onClose();
         } catch (Throwable t) {

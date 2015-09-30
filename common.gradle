@@ -21,9 +21,9 @@ repositories {
 dependencies {
     // Adding dependencies here will add the dependencies to each subproject.
     testCompile group: 'junit', name: 'junit', version: '4.10'
-    compile 'log4j:log4j:1.2.17'
+    
     compile 'org.slf4j:slf4j-api:1.7.12'
-    compile 'org.slf4j:slf4j-log4j12:1.7.12'
+    
 
 }
 
