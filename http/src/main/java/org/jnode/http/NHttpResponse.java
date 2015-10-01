@@ -29,6 +29,12 @@ public class NHttpResponse {
         this.sock = sock;
         bhr=new BasicHttpResponse(HttpVersion.HTTP_1_1,HttpStatus.SC_OK, "OK");
         bhr.addHeader("Transfer-Encoding","chunked");
+        bhr.addHeader("Connection","close");
+        sock.onDrain(()->{
+            if(isDone)
+                sock.close();
+        });
+        sock.out.setCharset(charset);
     }
     public void setCode(int code) {
         if(isHeaderSent) throw new IllegalStateException("Header already sent");
@@ -43,17 +49,17 @@ public class NHttpResponse {
         bhr.setHeader(key, value);
     }
     private StringBuilder sendHeader(StringBuilder sb) {
-        sb.append(bhr.getStatusLine().toString()).append("\n");
+        sb.append(bhr.getStatusLine().toString()).append("\r\n");
         HeaderIterator it = bhr.headerIterator();
         while (it.hasNext()) {
-            sb.append(it.nextHeader().toString()).append("\n");
+            sb.append(it.nextHeader().toString()).append("\r\n");
         }
-        sb.append("\n");
+        sb.append("\r\n");
         isHeaderSent=true;
         return sb;
     }
     private StringBuilder compose(StringBuilder sb,String text) {
-        return sb.append(Integer.toHexString(text.getBytes(charset).length)).append("\n").append(text).append("\n");
+        return sb.append(Integer.toHexString(text.getBytes(charset).length)).append("\r\n").append(text).append("\r\n");
         
     }
     private StringBuilder _write(StringBuilder sb,String data) {
@@ -66,21 +72,22 @@ public class NHttpResponse {
         }
         return sb;
     }
+    private boolean isDone=false;
     public void write(String data) {
         // horrible, i know
         StringBuilder sb=new StringBuilder();
         _write(sb,data);
-        sock.out.println(sb.toString());
+        sock.out.print(sb.toString());
     }
     public void end(String data) {
+        
         StringBuilder sb=new StringBuilder();
         _write(sb,data);
         compose(sb,"");
-        sock.out.println(sb.toString());
+        sock.out.print(sb.toString());
+        isDone=true;
         sock.out.flush();
-        end();
+        
     }
-    public void end() {
-        sock.onDrain(()->{sock.close();});
-    }
+
 }
