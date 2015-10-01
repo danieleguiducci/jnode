@@ -10,13 +10,12 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
-import java.nio.channels.SocketChannel;
 import java.util.concurrent.CompletableFuture;
 import org.jnode.core.JNode;
-import org.jnode.core.JNode.RegisterResult;
 import org.jnode.core.Looper;
 import org.slf4j.LoggerFactory;
 import org.apache.commons.io.IOUtils;
+import org.jnode.core.JNode.NContext;
 
 /**
  *
@@ -29,16 +28,14 @@ public class NServerSocket implements Closeable {
     private ServerSocketChannel ssc;
     private OnErrorHandler errorHandler;
     private NSocketServerHandler listener;
-    private JNode jnode;
     private Looper looper;
     private SelectionKey sk;
-
-    protected NServerSocket(JNode jnode, NSocketServerHandler listener) {
-        if (listener == null) {
-            throw new IllegalArgumentException("Listener can't be null");
-        }
-        this.jnode = jnode;
-        this.listener = listener;
+    private final NContext ncontext;
+    public NServerSocket(NContext ncontext,NSocketServerHandler listener) {
+        if(listener==null) throw new NullPointerException("invalid Null listener");
+        this.ncontext=ncontext;
+        looper=ncontext.requestLooper();
+        this.listener=listener;
     }
 
     public CompletableFuture<NServerSocket> listen(int port) {
@@ -51,19 +48,18 @@ public class NServerSocket implements Closeable {
         return createServerChannel(port)
                 .thenCompose((socketChannel) -> {
                     this.ssc = socketChannel;
-                    return jnode.register(socketChannel, SelectionKey.OP_ACCEPT, new ServerChannelEvent());
+                    return looper.register(socketChannel, SelectionKey.OP_ACCEPT, new ServerChannelEvent());
                 }).whenComplete((ok, ex) -> {
                     if (ex != null && ssc != null && ssc.isOpen())
                         IOUtils.closeQuietly(ssc);
-                }).thenCompose((RegisterResult rr) -> {
-                    sk = rr.sk;
-                    looper = rr.assignedLooper;
+                }).thenCompose((SelectionKey selKey) -> {
+                    sk = selKey;
                     isBound = true;
                     return CompletableFuture.completedFuture(this);
                 });
     }
     public JNode getJNode() {
-        return this.jnode;
+        return this.ncontext.getJNode();
     }
     public int getLocalPort() {
         return ssc.socket().getLocalPort();
@@ -81,8 +77,9 @@ public class NServerSocket implements Closeable {
         return cf;
     }
 
-    public void onError(OnErrorHandler handler) {
+    public NServerSocket onError(OnErrorHandler handler) {
         this.errorHandler = handler;
+        return this;
     }
 
     @Override
@@ -113,23 +110,13 @@ public class NServerSocket implements Closeable {
         @Override
         public void onEvent(SelectionKey a) {
             if (a.isAcceptable()) {
-                try {
-                    SocketChannel sc = ssc.accept();
-                    NSocket nsc = new NSocket(jnode);
-                    nsc.setSocketChannel(sc).thenAccept((elem)-> {
-                        try {
-                            nsc.executeSafe(()->{listener.incomingConnection(nsc);});
-                        } catch (Throwable t) {
-                            log.error("Exception not handle", t);
-                        }
-                    }).whenComplete( (ok,ex) -> {
-                        if(ex!=null)
-                            _onError(ex);
-                    });
-                    
-                } catch (IOException ex) {
-                    _onError(ex);
-                }
+                NSocket nsc = new NSocket(ncontext);
+                nsc.setSocketChannel(ssc).thenAccept((elem)-> {
+                    nsc.executeSafe(()->{listener.incomingConnection(nsc);});
+                }).whenComplete( (ok,ex) -> {
+                    if(ex!=null)
+                        _onError(ex);
+                });
             }
         }
     }

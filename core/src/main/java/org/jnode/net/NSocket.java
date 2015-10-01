@@ -10,12 +10,12 @@ import java.io.IOException;
 import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
+import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.Charset;
 import java.util.LinkedList;
 import java.util.concurrent.CompletableFuture;
-import org.jnode.core.JNode;
-import org.jnode.core.JNode.RegisterResult;
+import org.jnode.core.JNode.NContext;
 import org.jnode.core.Looper;
 import org.jnode.core.NotYourThreadException;
 import org.slf4j.Logger;
@@ -34,15 +34,16 @@ public class NSocket implements Closeable {
     private onDrainHandler drainHandler;
     private OnCloseHandler closeHanlder;
     private SelectionKey sk;
-    private final JNode jnode;
-    private Looper looper;
-    private boolean isConnected = true;
+    private final NContext ncontext;
+    private final Looper looper;
+    private int state = 0;
     private static final Charset charset = Charset.forName("utf-8");
     public final NOutput out ;
 
-    protected NSocket(JNode jnode) {
-        this.jnode = jnode;
+    public NSocket(NContext ncontext) {
+        this.ncontext=ncontext;
         out = new NSockOut();
+        looper=ncontext.requestLooper();
     }
 
     private CompletableFuture<SocketChannel> configure(SocketChannel sc) {
@@ -56,13 +57,24 @@ public class NSocket implements Closeable {
         }
         return cf;
     }
-
-    protected CompletableFuture<Void> setSocketChannel(SocketChannel sc) {
+    public CompletableFuture<Void> setSocketChannel(ServerSocketChannel ssc) {
+        try {
+            SocketChannel sc=ssc.accept();
+            if(sc==null) throw new NullPointerException();
+            return setSocketChannel(sc);
+        } catch(Throwable e) {
+            CompletableFuture cf=new CompletableFuture();
+            cf.completeExceptionally(e);
+            return cf;
+        }
+    }
+    
+    private CompletableFuture<Void> setSocketChannel(SocketChannel sc) {
         this.sc = sc;
-        return configure(sc).thenCompose((SocketChannel sock) -> jnode.register(sc, SelectionKey.OP_READ, new SocketChannelEvent()))
-                .thenAccept((RegisterResult rr) -> {
-                    sk = rr.sk;
-                    looper = rr.assignedLooper;
+        return configure(sc).thenCompose((SocketChannel sock) -> looper.register(sc, SelectionKey.OP_READ, new SocketChannelEvent()))
+                .thenAccept((SelectionKey rr) -> {
+                    sk = rr;
+                    state=1;
                 });
 
     }
@@ -105,17 +117,17 @@ public class NSocket implements Closeable {
     }
 
     private void sendConnectionDown() {
-        if (!isConnected)
+        if (state==2)
             return;
         sk.cancel();
-        isConnected = false;
+        state=1;
         looper.schedule(() -> {
             _onClose();
         });
     }
 
     public int read(ByteBuffer bb) {
-        if (!isConnected)
+        if (state!=1)
             return 0;
         if (!sc.isConnected()) {
             sendConnectionDown();
@@ -241,7 +253,7 @@ public class NSocket implements Closeable {
             }
             if (a.isValid() && a.isWritable()) {
                 if(!processWriteOps()) {
-                    if(sk.isValid() && isConnected) {
+                    if(sk.isValid() && state!=1) {
                         sk.interestOps(sk.interestOps() & (~SelectionKey.OP_WRITE));
                         _onDrain();
                     }
@@ -262,7 +274,7 @@ public class NSocket implements Closeable {
 
         protected NSockOut() {
             super();
-            wo = WriteOps.createFromBBCache(jnode.getByteBufferCache(), estimedFrameSize);
+            wo = WriteOps.createFromBBCache(ncontext.getByteBufferCache(), estimedFrameSize);
         }
         
         @Override
@@ -282,7 +294,7 @@ public class NSocket implements Closeable {
                 wo.release();
             else
                 appendWriteOps(wo);
-            wo = WriteOps.createFromBBCache(jnode.getByteBufferCache(), estimedFrameSize);
+            wo = WriteOps.createFromBBCache(ncontext.getByteBufferCache(), estimedFrameSize);
         }
 
         @Override

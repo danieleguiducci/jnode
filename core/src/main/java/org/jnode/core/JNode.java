@@ -6,13 +6,11 @@
 package org.jnode.core;
 
 import java.io.IOException;
-import java.nio.channels.SelectableChannel;
-import java.nio.channels.SelectionKey;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
+import org.jnode.core.builder.NBuilder;
 import org.jnode.net.ByteBufferCache;
 
 /**
@@ -31,22 +29,20 @@ public class JNode {
     private LoadBalancerStrategy loadBalancer = BALANCER_LOADFACTOR;
     private boolean isRunning = true;
     private final ByteBufferCache bbCache;
+    private final NContext ncontext = new NContext();
+    private final NBuilder nbuilder=new NBuilder(ncontext);
     private JNode(int threadsCount) {
         loopers = new Looper[threadsCount];
-        bbCache=new ByteBufferCache(1<<29);
+        bbCache = new ByteBufferCache(1 << 29);
     }
-    
+
     public void setLoadBalancer(LoadBalancerStrategy loadBalancer) {
         if (loadBalancer == null)
             throw new NullPointerException();
         this.loadBalancer = loadBalancer;
     }
-    /**
-     * It's a temp method. Don't use it.
-     * @return 
-     */
-    public ByteBufferCache getByteBufferCache() {
-        return bbCache;
+    public NBuilder getBuilder() {
+        return nbuilder;
     }
     private void start() {
         try {
@@ -67,25 +63,9 @@ public class JNode {
         isRunning = false;
     }
 
-    public static class RegisterResult {
 
-        public Looper assignedLooper;
-        public SelectionKey sk;
-
-        public RegisterResult(Looper assignedLooper, SelectionKey sk) {
-            this.assignedLooper = assignedLooper;
-            this.sk = sk;
-        }
-
-    }
     public List<Looper> getLoopers() {
         return Collections.unmodifiableList(Arrays.asList(loopers));
-    }
-    public CompletableFuture<RegisterResult> register(SelectableChannel sc, int ops, Looper.ChannelEvent cEvent) {
-        Looper looper=Arrays.stream(loopers).sorted(loadBalancer).findFirst().get();
-        return looper.register(sc, ops, cEvent).thenCompose((SelectionKey ret) -> {
-            return CompletableFuture.completedFuture(new RegisterResult(looper, ret));
-        });
     }
 
     public synchronized static JNode get() {
@@ -109,4 +89,22 @@ public class JNode {
     public interface LoadBalancerStrategy extends Comparator<Looper> {
     }
 
+    public final class NContext {
+
+        private NContext() {
+
+        }
+
+        public JNode getJNode() {
+            return JNode.this;
+        }
+        public Looper requestLooper() {
+            return Arrays.stream(loopers).sorted(loadBalancer).findFirst().get();
+        }
+
+        public ByteBufferCache getByteBufferCache() {
+            return bbCache;
+        }
+
+    }
 }

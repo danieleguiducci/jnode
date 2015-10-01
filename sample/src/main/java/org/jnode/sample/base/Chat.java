@@ -24,7 +24,7 @@ public class Chat {
 
     public static void main(String arg[]) throws IOException {
         log.info("I'm starting the echo server");
-        HashSet<NSocket> con=new HashSet<>();
+        HashSet<NSocket> con = new HashSet<>();
         NServerSocket nss = Net.createServer((NSocket socket) -> {
             log.trace("Incoming connection");
             con.add(socket);
@@ -33,35 +33,33 @@ public class Chat {
             ByteBuffer bb = ByteBuffer.allocate(200);
             socket.onData(sock -> {
                 bb.clear();
-                int letti=sock.read(bb);
-                con.forEach((altro)->{
-                    if(altro==sock)return;
+                int letti = sock.read(bb);
+                con.forEach((altro) -> {
+                    if (altro == sock)
+                        return;
                     ByteBuffer toSend = ByteBuffer.allocate(200); // it's evil
                     bb.flip();
                     toSend.put(bb);
                     toSend.flip();
-                    altro.executeSafe(()->{
+                    altro.executeSafe(() -> {
                         altro.out.write(toSend);
                     });
                 });
-                
+
             });
             socket.onClose(() -> {
-                log.trace("Connection lost");
+                log.trace("Connection close");
                 con.remove(socket);
             });
         });
-        nss.listen(54321).handle((ok, ex) -> {
-            if (ex != null) {
-                log.error("Binding error ", ex);
-            } else {
-                log.info("Server is ready to accept connection");
-            }
-            return -1;
-        });
         nss.onError(ex -> {
             log.error("Errore on accepting connection ");
+        }).listen(54321).handle((ok, ex) -> {
+            if (ex != null)
+                log.error("Binding error ", ex);
+            else
+                log.info("Server is ready to accept connection");
+            return -1;
         });
-
     }
 }

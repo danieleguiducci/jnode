@@ -13,7 +13,7 @@ public class BaseHttpServer {
         log.info("I'm starting the http server");
         
         NHttpServer nhs=Http.createServer((req, resp)->{
-            log.trace("Http request incoming. Url:{0}",req.getRequestLine().getUri());
+            log.trace("Http request incoming. Url:{}",req.getRequestLine().getUri());
             resp.addHeader("Content-Type","text/html; charset=utf-8");
             resp.end("Hello world è!");
             

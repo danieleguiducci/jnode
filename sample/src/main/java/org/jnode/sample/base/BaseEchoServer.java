@@ -29,26 +29,23 @@ public class BaseEchoServer {
             socket.out.flush();
             socket.onData(sock -> {
                 // Allocate a new BB each read operation is bad.
-                ByteBuffer bb=ByteBuffer.allocate(200);
+                ByteBuffer bb = ByteBuffer.allocate(200);
                 sock.read(bb);
                 bb.flip();
                 socket.out.write(bb);
             });
             socket.onClose(() -> {
-                log.trace( "Connection lost");
+                log.trace("Connection lost");
             });
-           
-        });
-        nss.listen(54321).handle((ok, ex) -> {
-            if (ex != null) {
-                log.error("Binding error ",ex);
-            } else {
-                log.info("Server is ready to accept connection");
-            }
-            return -1;
+
         });
         nss.onError(ex -> {
             log.error("Errore on accepting connection ");
+        }).listen(54321).whenComplete((ok, ex) -> {
+            if (ex != null)
+                log.error("Binding error ", ex);
+            else
+                log.info("Server is ready to accept connection");
         });
 
     }

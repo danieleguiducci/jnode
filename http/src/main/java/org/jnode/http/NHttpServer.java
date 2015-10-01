@@ -22,13 +22,13 @@ import org.slf4j.LoggerFactory;
 public class NHttpServer {
     
     private final static org.slf4j.Logger log = LoggerFactory.getLogger(NHttpServer.class);
-    private NHttpServerHandler handler;
+    private NHttpServerHandler httpReqHandler;
     private NServerSocket server;
     private OnErrorHandler errorHandler;
-    protected NHttpServer(NHttpServerHandler handler) {
-        if(handler==null) throw new NullPointerException();
-        this.server=Net.createServer(new NServerHandler());
-        this.handler=handler;
+    protected NHttpServer(NHttpServerHandler httpReqHandler) {
+        if(httpReqHandler==null) throw new NullPointerException();
+        server=Net.createServer(new NServerHandler());
+        this.httpReqHandler=httpReqHandler;
     };
     private class NServerHandler implements NSocketServerHandler {
 
@@ -44,7 +44,7 @@ public class NHttpServer {
                     
                     if(o!=null) {
                         NHttpResponse resp=new NHttpResponse(sock);
-                        handler.incomingRequest((BasicHttpRequest)o, resp);
+                        httpReqHandler.incomingRequest((BasicHttpRequest)o, resp);
                     } 
                 } catch(ProtocolException ex) {
                     sock.close();

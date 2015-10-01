@@ -13,7 +13,7 @@ import org.jnode.core.JNode;
  */
 public class Net {
     public static NServerSocket createServer(NSocketServerHandler listener) {
-        return new NServerSocket(JNode.get(), listener);
+        return JNode.get().getBuilder().createSocketServer(listener);
     }
     
 }
