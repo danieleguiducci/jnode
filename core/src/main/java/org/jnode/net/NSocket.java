@@ -9,6 +9,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
+import java.nio.channels.CancelledKeyException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
@@ -94,9 +95,11 @@ public class NSocket implements Closeable {
     public void onDrain(onDrainHandler handler) {
         this.drainHandler = handler;
     }
-
-    private void _close() {
-        sendConnectionDown();
+    @Override
+    public void close() {
+        checkThread();
+        
+        sendConnectionDown(DOWN_REASON.LOCAL_CLOSE);
         try {
             sc.close();
         } catch (IOException ex) {
@@ -106,21 +109,17 @@ public class NSocket implements Closeable {
         }
     }
 
-    @Override
-    public void close() {
-        if (Thread.currentThread().getId() == looper.getId())
-            _close();
-        else
-            looper.schedule(() -> {
-                this._close();
-            });
+    public static enum DOWN_REASON {IO_EXCEPTION,REMOTE_CLOSE,LOCAL_CLOSE};
+    private DOWN_REASON downReason=null;
+    public DOWN_REASON getCloseReason() {
+        return downReason;
     }
-
-    private void sendConnectionDown() {
+    private void sendConnectionDown(DOWN_REASON reason) {
         if (state==2)
             return;
         sk.cancel();
-        state=1;
+        state=2;
+        downReason=reason;
         looper.schedule(() -> {
             _onClose();
         });
@@ -128,23 +127,23 @@ public class NSocket implements Closeable {
 
     public int read(ByteBuffer bb) {
         if (state!=1)
-            return 0;
+            return -1;
         if (!sc.isConnected()) {
-            sendConnectionDown();
-            return 0;
+            sendConnectionDown(DOWN_REASON.LOCAL_CLOSE);
+            return -1;
         }
         try {
             int readed = sc.read(bb);
             if (readed == -1) {
-                sendConnectionDown();
-                return 0;
+                sendConnectionDown(DOWN_REASON.REMOTE_CLOSE);
+                return -1;
             }
             return readed;
         } catch (IOException ex) {
             looper.schedule(() -> {
                 _onError(ex);
             });
-            return 0;
+            return -1;
         }
 
     }
@@ -165,8 +164,8 @@ public class NSocket implements Closeable {
             }
             sk.interestOps(sk.interestOps() | SelectionKey.OP_WRITE);
             return true;
-        } catch (IOException ex) {
-            sendConnectionDown();
+        } catch (Throwable ex) { //CancelledKeyException
+            sendConnectionDown(DOWN_REASON.IO_EXCEPTION);
             return false;
         }
     }
@@ -187,7 +186,7 @@ public class NSocket implements Closeable {
         if (closeHanlder == null)
             return;
         try {
-            closeHanlder.onClose();
+            closeHanlder.onClose(this);
         } catch (Throwable t) {
             log.error("Uncatched error", t);
         }
@@ -253,7 +252,7 @@ public class NSocket implements Closeable {
             }
             if (a.isValid() && a.isWritable()) {
                 if(!processWriteOps()) {
-                    if(sk.isValid() && state!=1) {
+                    if(sk.isValid() && state==1) {
                         sk.interestOps(sk.interestOps() & (~SelectionKey.OP_WRITE));
                         _onDrain();
                     }

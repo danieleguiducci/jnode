@@ -3,13 +3,17 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package org.jnode.net;
+package org.jnode.jersery.sample;
+
+import org.jnode.jersey.JNContainer;
 
 /**
  *
  * @author daniele
  */
-@FunctionalInterface
-public interface OnCloseHandler {
-    void onClose(NSocket sock);
+public class Main {
+    public static void main(String arg[]) {
+        JNContainer con=new JNContainer();
+        
+    }
 }

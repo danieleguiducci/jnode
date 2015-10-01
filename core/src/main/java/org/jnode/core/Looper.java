@@ -49,7 +49,8 @@ public class Looper {
         if (runnable == null)
             throw new NullPointerException("Runnable can't be null");
         runnables.add(runnable);
-        selector.wakeup();
+        if(Thread.currentThread().getId()!=id)
+            selector.wakeup();
     }
 
     protected Thread start() {
@@ -75,14 +76,16 @@ public class Looper {
             while (isRunning) {
                 try {
                     long t0 = System.nanoTime();
-                    selector.select(700);
+                    int countChan=selector.select(700);
                     long t1 = System.nanoTime();
-                    Iterator<SelectionKey> it = selector.selectedKeys().iterator();
-                    while (it.hasNext()) {
-                        SelectionKey sk = it.next();
-                        ChannelEvent ce = (ChannelEvent) sk.attachment();
-                        ce.onEvent(sk);
-                        it.remove();
+                    if(countChan>0) {
+                        Iterator<SelectionKey> it = selector.selectedKeys().iterator();
+                        while (it.hasNext()) {
+                            SelectionKey sk = it.next();
+                            ChannelEvent ce = (ChannelEvent) sk.attachment();
+                            ce.onEvent(sk);
+                            it.remove();
+                        }
                     }
 
                     while (!runnables.isEmpty()) {

@@ -34,8 +34,8 @@ public class BaseEchoServer {
                 bb.flip();
                 socket.out.write(bb);
             });
-            socket.onClose(() -> {
-                log.trace("Connection lost");
+            socket.onClose((sock) -> {
+                log.trace("Connection lost. Reason "+sock.getCloseReason());
             });
 
         });

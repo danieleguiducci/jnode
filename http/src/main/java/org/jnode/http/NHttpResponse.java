@@ -48,46 +48,44 @@ public class NHttpResponse {
         if(isHeaderSent) throw new IllegalStateException("Header already sent");
         bhr.setHeader(key, value);
     }
-    private StringBuilder sendHeader(StringBuilder sb) {
-        sb.append(bhr.getStatusLine().toString()).append("\r\n");
+    private void sendHeader() {
+        sock.out.println(bhr.getStatusLine().toString());
         HeaderIterator it = bhr.headerIterator();
         while (it.hasNext()) {
-            sb.append(it.nextHeader().toString()).append("\r\n");
+            sock.out.println(it.nextHeader().toString());
         }
-        sb.append("\r\n");
+        sock.out.println();
         isHeaderSent=true;
-        return sb;
     }
-    private StringBuilder compose(StringBuilder sb,String text) {
-        return sb.append(Integer.toHexString(text.getBytes(charset).length)).append("\r\n").append(text).append("\r\n");
-        
+    private void compose(String text) {
+        byte[] data=text.getBytes(charset);
+        sock.out.println(Integer.toHexString(data.length));
+        sock.out.write(data);
+        sock.out.println();
     }
-    private StringBuilder _write(StringBuilder sb,String data) {
-        if(!isHeaderSent) {
-            sendHeader(sb);
-            if(data.length()>0) compose(sb,data);
-        } else {
-            if(data.length()==0) return sb;
-            compose(sb,data);
-        }
-        return sb;
+    private void _write(String data) {
+
     }
     private boolean isDone=false;
     public void write(String data) {
-        // horrible, i know
-        StringBuilder sb=new StringBuilder();
-        _write(sb,data);
-        sock.out.print(sb.toString());
+        if(!isHeaderSent) {
+            sendHeader();
+            if(data.length()>0) compose(data);
+        } else {
+            if(data.length()==0) return;
+            compose(data);
+        }
     }
-    public void end(String data) {
-        
-        StringBuilder sb=new StringBuilder();
-        _write(sb,data);
-        compose(sb,"");
-        sock.out.print(sb.toString());
+    public void end() {
+        compose("");
         isDone=true;
         sock.out.flush();
-        
+    }
+    public void end(String data) {
+        write(data);
+        compose("");
+        isDone=true;
+        sock.out.flush();
     }
 
 }

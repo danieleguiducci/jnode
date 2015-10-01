@@ -47,8 +47,8 @@ public class Chat {
                 });
 
             });
-            socket.onClose(() -> {
-                log.trace("Connection close");
+            socket.onClose((sock) -> {
+                log.trace("Connection close. Reason "+sock.getCloseReason());
                 con.remove(socket);
             });
         });

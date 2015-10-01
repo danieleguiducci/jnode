@@ -38,7 +38,7 @@ public abstract class NOutput extends OutputStream implements Flushable{
     private byte[] newLine;
     public final void setCharset(Charset charset) {
         this.charset=charset;
-        newLine="\n".getBytes(charset);
+        newLine="\r\n".getBytes(charset);
     }
 
     public void print(String string) {
@@ -48,6 +48,9 @@ public abstract class NOutput extends OutputStream implements Flushable{
     public void println(String string) {
         if(string.length()==0) return;
         write(string.getBytes(charset));
+        write(newLine);
+    }
+    public void println() {
         write(newLine);
     }
 }

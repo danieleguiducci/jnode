@@ -15,8 +15,11 @@ public class BaseHttpServer {
         NHttpServer nhs=Http.createServer((req, resp)->{
             log.trace("Http request incoming. Url:{}",req.getRequestLine().getUri());
             resp.addHeader("Content-Type","text/html; charset=utf-8");
-            resp.end("Hello world è!");
-            
+            resp.write("Hello World!<br/>");
+            resp.end("request page: "+req.getRequestLine().getUri());
+        });
+        nhs.onSocketClose((sock)->{
+            log.trace("connection close " + sock.getCloseReason());
         });
         nhs.listen(80).whenComplete((ok, ex)->{
             if(ex!=null) {
