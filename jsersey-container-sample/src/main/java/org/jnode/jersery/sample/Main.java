@@ -5,6 +5,7 @@
  */
 package org.jnode.jersery.sample;
 
+import org.glassfish.jersey.server.ResourceConfig;
 import org.jnode.jersey.JNContainer;
 
 /**
@@ -13,7 +14,9 @@ import org.jnode.jersey.JNContainer;
  */
 public class Main {
     public static void main(String arg[]) {
-        JNContainer con=new JNContainer();
-        
+        ResourceConfig res=new ResourceConfig();
+        res.packages("org.jnode.jersery.sample");
+        JNContainer con=new JNContainer(res);
+        con.start();
     }
 }

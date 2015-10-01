@@ -5,6 +5,8 @@
  */
 package org.jnode.http;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.charset.Charset;
 import org.jnode.net.NSocket;
 import org.apache.http.HttpStatus;
@@ -12,14 +14,13 @@ import org.apache.http.HttpVersion;
 import org.apache.http.message.BasicHttpResponse;
 import org.apache.http.Header;
 import org.apache.http.HeaderIterator;
-import org.jnode.core.Looper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 /**
  *
  * @author daniele
  */
-public class NHttpResponse {
+public class NHttpResponse extends OutputStream{
     private final static Logger log = LoggerFactory.getLogger(NHttpResponse.class);
     private final NSocket sock;
     private final BasicHttpResponse bhr;
@@ -58,23 +59,33 @@ public class NHttpResponse {
         isHeaderSent=true;
     }
     private void compose(String text) {
-        byte[] data=text.getBytes(charset);
+        compose(text.getBytes(charset));
+    }
+    private void compose(byte[] data) {
+        if(!isHeaderSent)
+            sendHeader();
         sock.out.println(Integer.toHexString(data.length));
         sock.out.write(data);
         sock.out.println();
     }
-    private void _write(String data) {
-
+    private void compose(byte[] data,int off, int len) {
+        if(!isHeaderSent)
+            sendHeader();
+        sock.out.println(Integer.toHexString(len));
+        sock.out.write(data,off,len);
+        sock.out.println();
+    }
+    private void compose(int data) {
+        if(!isHeaderSent)
+            sendHeader();
+        sock.out.println("1");
+        sock.out.write(data);
+        sock.out.println();
     }
     private boolean isDone=false;
     public void write(String data) {
-        if(!isHeaderSent) {
-            sendHeader();
-            if(data.length()>0) compose(data);
-        } else {
-            if(data.length()==0) return;
-            compose(data);
-        }
+        if(data.length()==0) return;
+        compose(data);
     }
     public void end() {
         compose("");
@@ -88,4 +99,20 @@ public class NHttpResponse {
         sock.out.flush();
     }
 
+    @Override
+    public void write(int b) throws IOException {
+        compose(b);
+    }
+    @Override
+    public void write(byte[] b) throws IOException {
+        compose(b);
+    }
+        @Override
+    public void write(byte[] b, int off, int len) throws IOException {
+        compose(b,off,len);
+    }
+    @Override
+    public void close() {
+        end();
+    }
 }

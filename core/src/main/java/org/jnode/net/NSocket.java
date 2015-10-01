@@ -346,6 +346,7 @@ public class NSocket implements Closeable {
          */
         @Override
         public void close() {
+            NSocket.this.close();
         }
     }
 }
