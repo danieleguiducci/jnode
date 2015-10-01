@@ -25,18 +25,22 @@ public class BaseEchoServer {
         log.info("I'm starting the echo server");
         NServerSocket nss = Net.createServer((NSocket socket) -> {
             log.trace("Incoming connection");
-            socket.write("Welcome in the Echo Server\n\r");
-           
+            socket.out.println("Welcome in the Echo Server");
+            socket.out.flush();
             socket.onData(sock -> {
                 // Allocate a new BB each read operation is bad.
                 ByteBuffer bb=ByteBuffer.allocate(200);
                 sock.read(bb);
                 bb.flip();
-                socket.write(bb);
+                socket.out.write(bb);
             });
             socket.onClose(() -> {
                 log.trace( "Connection lost");
             });
+            socket.onDrain(()->{
+                log.trace( "Output buffer ready");
+            });
+            
         });
         nss.listen(54321).handle((ok, ex) -> {
             if (ex != null) {

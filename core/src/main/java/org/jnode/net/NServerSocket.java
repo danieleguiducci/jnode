@@ -118,7 +118,7 @@ public class NServerSocket implements Closeable {
                     NSocket nsc = new NSocket(jnode);
                     nsc.setSocketChannel(sc).thenAccept((elem)-> {
                         try {
-                            listener.incomingConnection(nsc);
+                            nsc.executeSafe(()->{listener.incomingConnection(nsc);});
                         } catch (Throwable t) {
                             log.error("Exception not handle", t);
                         }

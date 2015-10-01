@@ -17,6 +17,7 @@ import java.util.concurrent.CompletableFuture;
 import org.jnode.core.JNode;
 import org.jnode.core.JNode.RegisterResult;
 import org.jnode.core.Looper;
+import org.jnode.core.NotYourThreadException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -24,7 +25,8 @@ import org.slf4j.LoggerFactory;
  *
  * @author daniele
  */
-public class NSocket implements Closeable{
+public class NSocket implements Closeable {
+
     private final static Logger log = LoggerFactory.getLogger(Looper.class);
     private SocketChannel sc;
     private OnErrorHandler errorHandler;
@@ -32,34 +34,39 @@ public class NSocket implements Closeable{
     private onDrainHandler drainHandler;
     private OnCloseHandler closeHanlder;
     private SelectionKey sk;
-    private final LinkedList<ByteBuffer> sendingBuffer = new LinkedList<>();
     private final JNode jnode;
     private Looper looper;
-    private boolean isConnected=true;
-    private static final Charset charset=Charset.forName("utf-8");
+    private boolean isConnected = true;
+    private static final Charset charset = Charset.forName("utf-8");
+    public final NOutput out ;
+
     protected NSocket(JNode jnode) {
-        this.jnode=jnode;
+        this.jnode = jnode;
+        out = new NSockOut();
     }
+
     private CompletableFuture<SocketChannel> configure(SocketChannel sc) {
-        CompletableFuture<SocketChannel> cf=new CompletableFuture<>();
+        CompletableFuture<SocketChannel> cf = new CompletableFuture<>();
         try {
             sc.configureBlocking(false);
-            sc.setOption(StandardSocketOptions.TCP_NODELAY,true);
+            sc.setOption(StandardSocketOptions.TCP_NODELAY, true);
             cf.complete(sc);
-        } catch(Exception e){
+        } catch (Exception e) {
             cf.completeExceptionally(e);
         }
         return cf;
     }
+
     protected CompletableFuture<Void> setSocketChannel(SocketChannel sc) {
         this.sc = sc;
-        return configure(sc).thenCompose((sock)->jnode.register(sc,  SelectionKey.OP_READ, new SocketChannelEvent()))
+        return configure(sc).thenCompose((SocketChannel sock) -> jnode.register(sc, SelectionKey.OP_READ, new SocketChannelEvent()))
                 .thenAccept((RegisterResult rr) -> {
-                    sk=rr.sk;
-                    looper=rr.assignedLooper;
+                    sk = rr.sk;
+                    looper = rr.assignedLooper;
                 });
-        
+
     }
+
     public void onError(OnErrorHandler handler) {
         this.errorHandler = handler;
     }
@@ -75,86 +82,97 @@ public class NSocket implements Closeable{
     public void onDrain(onDrainHandler handler) {
         this.drainHandler = handler;
     }
-    
+
     private void _close() {
         sendConnectionDown();
         try {
             sc.close();
         } catch (IOException ex) {
-            looper.schedule(()-> {_onError(ex);}) ;
+            looper.schedule(() -> {
+                _onError(ex);
+            });
         }
     }
 
     @Override
     public void close() {
-        if(Thread.currentThread().getId()==looper.getId())
+        if (Thread.currentThread().getId() == looper.getId())
             _close();
         else
-            looper.schedule(()->{this._close();});
-    }
-    private void sendConnectionDown() {
-        if(!isConnected) return;
-        sk.cancel();
-        isConnected=false;
-        looper.schedule(()-> {_onClose();}) ;
+            looper.schedule(() -> {
+                this._close();
+            });
     }
 
-    public int read(ByteBuffer bb)  {
-        if(!isConnected) return 0;
-        if(!sc.isConnected()) {
+    private void sendConnectionDown() {
+        if (!isConnected)
+            return;
+        sk.cancel();
+        isConnected = false;
+        looper.schedule(() -> {
+            _onClose();
+        });
+    }
+
+    public int read(ByteBuffer bb) {
+        if (!isConnected)
+            return 0;
+        if (!sc.isConnected()) {
             sendConnectionDown();
             return 0;
         }
         try {
             int readed = sc.read(bb);
-            if(readed==-1) {
+            if (readed == -1) {
                 sendConnectionDown();
                 return 0;
             }
             return readed;
         } catch (IOException ex) {
-            looper.schedule(()-> { _onError(ex);}) ;
+            looper.schedule(() -> {
+                _onError(ex);
+            });
             return 0;
         }
-        
+
     }
-    public void write(String data) {
-        write(ByteBuffer.wrap(data.getBytes(charset)));
-    }
-    private void _write(ByteBuffer bb) {
-        if (bb.remaining() == 0) 
-            return;
-        if (!sk.isValid()) {
-            _onError(new IOException("Sk is not valid"));
-            return;
-        }
-        if(sendingBuffer.isEmpty()) {
-            try {
-                sc.write(bb);
-            } catch (IOException ex) {
-                sendConnectionDown();
-                return;
+
+
+    private boolean processWriteOps() {
+        if(readWriteOps.isEmpty()) return false;
+        try {
+            while( !readWriteOps.isEmpty()) {
+                WriteOps wo=readWriteOps.getFirst();
+                int count=wo.fillChannel(sc);
+                if(wo.isDone()) {
+                    wo.release();
+                    readWriteOps.poll();
+                }
+                if(count==0)
+                    break;
             }
-        }
-        if(bb.hasRemaining()) {
-            sendingBuffer.add(bb);
             sk.interestOps(sk.interestOps() | SelectionKey.OP_WRITE);
-        } else {
-            _onDrain();
+            return true;
+        } catch (IOException ex) {
+            sendConnectionDown();
+            return false;
         }
     }
-    public void write(final ByteBuffer bb) {
-        if(Thread.currentThread().getId()==looper.getId())
-            _write(bb);
-        else
-            looper.schedule(() -> {this._write(bb);});
+
+    public void executeSafe(Runnable r) {
+        if(Thread.currentThread().getId()!=looper.getId()) {
+            looper.schedule(r);
+            return;
+        } 
+        try {
+            r.run();
+        } catch(Throwable t) {
+            log.error("Error. Uncatched exception ",t);
+        }
         
-    }
-    public boolean pendingData () {
-        return !this.sendingBuffer.isEmpty();
     }
     private void _onClose() {
-        if (closeHanlder == null) 
+        if (closeHanlder == null)
             return;
         try {
             closeHanlder.onClose();
@@ -170,7 +188,7 @@ public class NSocket implements Closeable{
         try {
             errorHandler.onError(bb);
         } catch (Throwable t) {
-            log.error( "Uncatched error", t);
+            log.error("Uncatched error", t);
         }
     }
 
@@ -181,10 +199,10 @@ public class NSocket implements Closeable{
         try {
             dataHandler.onDataIncoming(this);
         } catch (Throwable t) {
-            log.error( "Uncatched error", t);
+            log.error("Uncatched error", t);
         }
     }
-    
+
     private void _onDrain() {
         if (drainHandler == null) {
             return;
@@ -192,11 +210,15 @@ public class NSocket implements Closeable{
         try {
             drainHandler.onDrain();
         } catch (Throwable t) {
-            log.error( "Uncatched error", t);
-            
+            log.error("Uncatched error", t);
+
         }
     }
 
+    /**
+     *
+     * @author daniele
+     */
     private class SocketChannelEvent implements Looper.ChannelEvent {
 
         @Override
@@ -206,7 +228,7 @@ public class NSocket implements Closeable{
             }
             if (a.isReadable()) {
                 try {
-                
+
                     if (!sc.isConnected()) {
                         _onClose();
                         a.cancel();
@@ -218,27 +240,101 @@ public class NSocket implements Closeable{
                 }
             }
             if (a.isValid() && a.isWritable()) {
-                try {
-                    boolean hasSend = true;
-                    while (hasSend && !sendingBuffer.isEmpty()) {
-                        ByteBuffer bb = sendingBuffer.getFirst();
-                        sc.write(bb);
-                        if (bb.remaining() == 0) {
-                            sendingBuffer.removeFirst();
-                        } else {
-                            hasSend = false;
-                        }
-                    }
-                    if (sendingBuffer.isEmpty()) {
+                if(!processWriteOps()) {
+                    if(sk.isValid() && isConnected) {
                         sk.interestOps(sk.interestOps() & (~SelectionKey.OP_WRITE));
                         _onDrain();
                     }
-                } catch (IOException e) {
-                    sk.cancel();
-                    sendConnectionDown();
                 }
             }
         }
     }
-    
+    private void checkThread() {
+        if(Thread.currentThread().getId()!=looper.getId()) 
+            throw new NotYourThreadException();
+    }
+    private final LinkedList<WriteOps> readWriteOps = new LinkedList<>();
+    private class NSockOut extends  NOutput {
+
+        private int estimedFrameSize = 4096;
+        
+        private WriteOps wo;
+
+        protected NSockOut() {
+            super();
+            wo = WriteOps.createFromBBCache(jnode.getByteBufferCache(), estimedFrameSize);
+        }
+        
+        @Override
+        public void flush() {
+            if (wo.position() == 0)
+                return;
+            checkThread();
+            createWriteOps(estimedFrameSize);
+        }
+        private void appendWriteOps(WriteOps writeOps) {
+            if(writeOps.isOpen())writeOps.closeAndFlip();
+            readWriteOps.add(writeOps);
+            processWriteOps();
+        }
+        private void createWriteOps(int size) {
+            if (wo.position() == 0)
+                wo.release();
+            else
+                appendWriteOps(wo);
+            wo = WriteOps.createFromBBCache(jnode.getByteBufferCache(), estimedFrameSize);
+        }
+
+        @Override
+        public void setEstimedFrameSize(int size) {
+            checkThread();
+            if (size <= 100)
+                size = 100;
+            estimedFrameSize = size;
+        }
+
+        @Override
+        public void write(ByteBuffer bb) {
+            checkThread();
+            if(Thread.currentThread().getId()!=looper.getId()) {
+                looper.schedule(()->{flush();});
+                return;
+            }
+            if (!bb.hasRemaining())
+                return;
+            flush();
+            appendWriteOps(WriteOps.wrap(bb));
+        }
+
+        @Override
+        public void write(int b) {
+            checkThread();
+            if (wo.remaining() == 0)
+                createWriteOps(estimedFrameSize);
+            wo.write(b);
+        }
+
+        @Override
+        public void write(byte[] b) {
+            checkThread();
+            if (wo.remaining() < b.length)
+                createWriteOps(Math.max(b.length, estimedFrameSize));
+            wo.write(b);
+        }
+
+        @Override
+        public void write(byte[] b, int off, int len) {
+            checkThread();
+            if (wo.remaining() < len)
+                createWriteOps(Math.max(len, estimedFrameSize));
+            wo.write(b, off, len);
+        }
+
+        /**
+         * No effect on this implementation
+         */
+        @Override
+        public void close() {
+        }
+    }
 }

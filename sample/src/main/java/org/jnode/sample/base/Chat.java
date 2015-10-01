@@ -28,7 +28,8 @@ public class Chat {
         NServerSocket nss = Net.createServer((NSocket socket) -> {
             log.trace("Incoming connection");
             con.add(socket);
-            socket.write("Welcome in the Chat server.\r");
+            socket.out.println("Welcome in the Chat server.");
+            socket.out.flush();
             ByteBuffer bb = ByteBuffer.allocate(200);
             socket.onData(sock -> {
                 bb.clear();
@@ -39,7 +40,9 @@ public class Chat {
                     bb.flip();
                     toSend.put(bb);
                     toSend.flip();
-                    altro.write(toSend);
+                    altro.executeSafe(()->{
+                        altro.out.write(toSend);
+                    });
                 });
                 
             });

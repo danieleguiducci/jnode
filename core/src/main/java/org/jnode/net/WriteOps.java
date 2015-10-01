@@ -6,7 +6,6 @@
 package org.jnode.net;
 
 import java.io.IOException;
-import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 
@@ -14,7 +13,7 @@ import java.nio.channels.SocketChannel;
  *
  * @author daniele
  */
-class WriteOps extends OutputStream {
+class WriteOps {
 
     private ByteBuffer bb;
     private boolean toBeRelease;
@@ -63,26 +62,32 @@ class WriteOps extends OutputStream {
             release();
         return c;
     }
-    protected void closeStream() {
+    protected boolean isDone() {
+        return state==2;
+    }
+    protected boolean isOpen() {
+        return state==0;
+    }
+    protected void closeAndFlip() {
         if(state!=0) throw new IllegalStateException("Can't close the stream in the state "+state);
         state=1;
         bb.flip();
     }
-    @Override
+
     public void write(int b) {
         if (state != 0)
             throw new IllegalStateException("Stream is closed");
         bb.put((byte) b);
     }
 
-    @Override
+
     public void write(byte b[])  {
         if (state != 0)
             throw new IllegalStateException("Stream is closed");
         bb.put(b);
     }
 
-    @Override
+ 
     public void write(byte b[], int off, int len)  {
         if (state != 0)
             throw new IllegalStateException("Stream is closed");

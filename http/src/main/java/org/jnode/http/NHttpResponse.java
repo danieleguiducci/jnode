@@ -70,22 +70,17 @@ public class NHttpResponse {
         // horrible, i know
         StringBuilder sb=new StringBuilder();
         _write(sb,data);
-        sock.write(sb.toString());
+        sock.out.println(sb.toString());
     }
     public void end(String data) {
         StringBuilder sb=new StringBuilder();
         _write(sb,data);
         compose(sb,"");
-        sock.write(sb.toString());
+        sock.out.println(sb.toString());
+        sock.out.flush();
         end();
     }
     public void end() {
-        if(sock.pendingData()) {
-            
-            sock.onDrain(()->{sock.close();});
-        } else {
-            sock.close();
-        }
-        
+        sock.onDrain(()->{sock.close();});
     }
 }

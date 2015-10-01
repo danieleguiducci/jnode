@@ -13,6 +13,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import org.jnode.net.ByteBufferCache;
 
 /**
  *
@@ -29,18 +30,24 @@ public class JNode {
     private final Looper[] loopers;
     private LoadBalancerStrategy loadBalancer = BALANCER_LOADFACTOR;
     private boolean isRunning = true;
-
+    private final ByteBufferCache bbCache;
     private JNode(int threadsCount) {
         loopers = new Looper[threadsCount];
-
+        bbCache=new ByteBufferCache(1<<29);
     }
-
+    
     public void setLoadBalancer(LoadBalancerStrategy loadBalancer) {
         if (loadBalancer == null)
             throw new NullPointerException();
         this.loadBalancer = loadBalancer;
     }
-
+    /**
+     * It's a temp method. Don't use it.
+     * @return 
+     */
+    public ByteBufferCache getByteBufferCache() {
+        return bbCache;
+    }
     private void start() {
         try {
             for (int i = 0; i < loopers.length; i++) {

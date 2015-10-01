@@ -6,16 +6,17 @@
 package org.jnode.net;
 
 import java.nio.ByteBuffer;
+import org.slf4j.LoggerFactory;
 
 /**
  *
  * @author daniele
  */
-class ByteBufferCache {
-
+public class ByteBufferCache {
+    private final static org.slf4j.Logger log = LoggerFactory.getLogger(ByteBufferCache.class);
     private final ByteBufferPool[] pools;
     private int maxSize;
-    protected ByteBufferCache(int maxSize) {
+    public ByteBufferCache(int maxSize) {
         this.pools = new ByteBufferPool[32];
         if (maxSize <= 100)
             throw new IllegalArgumentException();
