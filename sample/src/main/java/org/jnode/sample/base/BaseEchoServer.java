@@ -37,10 +37,7 @@ public class BaseEchoServer {
             socket.onClose(() -> {
                 log.trace( "Connection lost");
             });
-            socket.onDrain(()->{
-                log.trace( "Output buffer ready");
-            });
-            
+           
         });
         nss.listen(54321).handle((ok, ex) -> {
             if (ex != null) {

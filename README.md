@@ -1,43 +1,47 @@
 # jnode
 ```java
-NServerSocket nss = Net.createServer((jnode.net.NSocket socket) -> {
-    log.fine("Incoming connection");
-    socket.write("Welcome on the Echo Server\n\r");
+NServerSocket nss = Net.createServer((NSocket socket) -> {
+    log.trace("Incoming connection");
+    socket.out.println("Welcome in the Echo Server");
+    socket.out.flush();
     socket.onData(sock -> {
-        ByteBuffer data=sock.read();
-        data.flip();
-        socket.write(data);
+        // Allocate a new BB each read operation is bad. We are working on it
+        ByteBuffer bb=ByteBuffer.allocate(200);
+        sock.read(bb);
+        bb.flip();
+        socket.out.write(bb);
     });
     socket.onClose(() -> {
-        log.log(Level.FINE, "Connection lost");
+        log.trace( "Connection lost");
     });
 });
 nss.listen(54321).handle((ok, ex) -> {
     if (ex != null) {
-        log.log(Level.SEVERE, "Binding error ", ex);
+        log.error("Binding error ",ex);
     } else {
-        log.log(Level.INFO, "Server is ready to accept connection");
+        log.info("Server is ready to accept connection");
     }
     return -1;
 });
 nss.onError(ex -> {
-    log.log(Level.SEVERE, "Errore on accepting connection ", ex);
+    log.error("Errore on accepting connection ");
 });
 ```
 
 
 ```java
 NHttpServer nhs=Http.createServer((req, resp)->{
-    log.log(Level.FINE,"Http request incoming. Url:{0}",req.getRequestLine().getUri());
-    resp.addHeader("Content-Type","text/plain");
-    resp.end("Hello world!");
+    log.trace("Http request incoming. Url:{0}",req.getRequestLine().getUri());
+    resp.addHeader("Content-Type","text/html; charset=utf-8");
+    resp.end("Hello world è!");
+
 });
 nhs.listen(80).whenComplete((ok, ex)->{
     if(ex!=null) {
-        log.log(Level.SEVERE, "Error binding to port ",ex);
+        log.error("Error binding to port ",ex);
     }
 });
 nhs.onError(ex -> {
-    log.log(Level.SEVERE, "Socket error ",ex);
+    log.error("Socket error ",ex);
 });
 ```
