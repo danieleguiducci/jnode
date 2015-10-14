@@ -14,7 +14,7 @@ import javax.ws.rs.core.MediaType;
  *
  * @author daniele
  */
-@Path("myresource")
+@Path("todo")
 public class MyResource {
 
     /**
@@ -24,9 +24,18 @@ public class MyResource {
      * @return String that will be returned as a text/plain response.
      */
     @GET
+    @Path("text")
     @Produces(MediaType.TEXT_PLAIN)
     public String getIt() {
         return "Got it!";
+    }
+      @GET
+    @Produces({ MediaType.APPLICATION_XML, MediaType.APPLICATION_JSON })
+    public Todo getXML() {
+      Todo todo = new Todo();
+      todo.setSummary("This is my first todo");
+      todo.setDescription("This is my first todo");
+      return todo;
     }
 
 }

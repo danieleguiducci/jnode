@@ -7,15 +7,16 @@ package org.jnode.net;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
-import java.nio.channels.CancelledKeyException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.Charset;
 import java.util.LinkedList;
 import java.util.concurrent.CompletableFuture;
+import java.util.logging.Level;
 import org.jnode.core.JNode.NContext;
 import org.jnode.core.Looper;
 import org.jnode.core.NotYourThreadException;
@@ -34,17 +35,18 @@ public class NSocket implements Closeable {
     private OnDataHandler dataHandler;
     private onDrainHandler drainHandler;
     private OnCloseHandler closeHanlder;
+    private OnConnectionEstablishedHandler enstablishedHandler;
     private SelectionKey sk;
     private final NContext ncontext;
     private final Looper looper;
     private int state = 0;
     private static final Charset charset = Charset.forName("utf-8");
-    public final NOutput out ;
+    public final NOutput out;
 
     public NSocket(NContext ncontext) {
-        this.ncontext=ncontext;
+        this.ncontext = ncontext;
         out = new NSockOut();
-        looper=ncontext.requestLooper();
+        looper = ncontext.requestLooper();
     }
 
     private CompletableFuture<SocketChannel> configure(SocketChannel sc) {
@@ -58,47 +60,79 @@ public class NSocket implements Closeable {
         }
         return cf;
     }
-    public CompletableFuture<Void> setSocketChannel(ServerSocketChannel ssc) {
+
+    public CompletableFuture<NSocket> connect(InetSocketAddress dest) {
         try {
-            SocketChannel sc=ssc.accept();
-            if(sc==null) throw new NullPointerException();
-            return setSocketChannel(sc);
-        } catch(Throwable e) {
-            CompletableFuture cf=new CompletableFuture();
+
+            sc = SocketChannel.open();
+            sc.configureBlocking(false);
+            sc.setOption(StandardSocketOptions.TCP_NODELAY, true);
+            sc.connect(dest);
+            return looper.register(sc, SelectionKey.OP_CONNECT, new SocketChannelEvent())
+                    .thenCompose((SelectionKey rr) -> {
+                        sk = rr;
+                        state = 1;
+                        return CompletableFuture.completedFuture(NSocket.this);
+                    });
+        } catch (Throwable e) {
+            CompletableFuture cf = new CompletableFuture();
             cf.completeExceptionally(e);
             return cf;
         }
     }
-    
-    private CompletableFuture<Void> setSocketChannel(SocketChannel sc) {
+
+    public CompletableFuture<Void> setSocketChannel(ServerSocketChannel ssc) {
+        try {
+            SocketChannel sc = ssc.accept();
+            if (sc == null)
+                throw new NullPointerException();
+            return setSocketChannel(sc, SelectionKey.OP_READ);
+        } catch (Throwable e) {
+            CompletableFuture cf = new CompletableFuture();
+            cf.completeExceptionally(e);
+            return cf;
+        }
+    }
+
+    private CompletableFuture<Void> setSocketChannel(SocketChannel sc, int op) {
         this.sc = sc;
-        return configure(sc).thenCompose((SocketChannel sock) -> looper.register(sc, SelectionKey.OP_READ, new SocketChannelEvent()))
+        return configure(sc).thenCompose((SocketChannel sock) -> looper.register(sc, op, new SocketChannelEvent()))
                 .thenAccept((SelectionKey rr) -> {
                     sk = rr;
-                    state=1;
+                    state = 1;
                 });
 
     }
 
-    public void onError(OnErrorHandler handler) {
+    public NSocket onConnectionEstablished(OnConnectionEstablishedHandler handler) {
+        this.enstablishedHandler = handler;
+        return this;
+    }
+
+    public NSocket onError(OnErrorHandler handler) {
         this.errorHandler = handler;
+        return this;
     }
 
-    public void onClose(OnCloseHandler handler) {
+    public NSocket onClose(OnCloseHandler handler) {
         this.closeHanlder = handler;
+        return this;
     }
 
-    public void onData(OnDataHandler handler) {
+    public NSocket onData(OnDataHandler handler) {
         this.dataHandler = handler;
+        return this;
     }
 
-    public void onDrain(onDrainHandler handler) {
+    public NSocket onDrain(onDrainHandler handler) {
         this.drainHandler = handler;
+        return this;
     }
+
     @Override
     public void close() {
         checkThread();
-        
+
         sendConnectionDown(DOWN_REASON.LOCAL_CLOSE);
         try {
             sc.close();
@@ -109,24 +143,29 @@ public class NSocket implements Closeable {
         }
     }
 
-    public static enum DOWN_REASON {IO_EXCEPTION,REMOTE_CLOSE,LOCAL_CLOSE};
-    private DOWN_REASON downReason=null;
+    public static enum DOWN_REASON {
+
+        IO_EXCEPTION, REMOTE_CLOSE, LOCAL_CLOSE
+    };
+    private DOWN_REASON downReason = null;
+
     public DOWN_REASON getCloseReason() {
         return downReason;
     }
+
     private void sendConnectionDown(DOWN_REASON reason) {
-        if (state==2)
+        if (state == 2)
             return;
         sk.cancel();
-        state=2;
-        downReason=reason;
+        state = 2;
+        downReason = reason;
         looper.schedule(() -> {
             _onClose();
         });
     }
 
     public int read(ByteBuffer bb) {
-        if (state!=1)
+        if (state != 1)
             return -1;
         if (!sc.isConnected()) {
             sendConnectionDown(DOWN_REASON.LOCAL_CLOSE);
@@ -148,18 +187,18 @@ public class NSocket implements Closeable {
 
     }
 
-
     private boolean processWriteOps() {
-        if(readWriteOps.isEmpty()) return false;
+        if (readWriteOps.isEmpty())
+            return false;
         try {
-            while( !readWriteOps.isEmpty()) {
-                WriteOps wo=readWriteOps.getFirst();
-                int count=wo.fillChannel(sc);
-                if(wo.isDone()) {
+            while (!readWriteOps.isEmpty()) {
+                WriteOps wo = readWriteOps.getFirst();
+                int count = wo.fillChannel(sc);
+                if (wo.isDone()) {
                     wo.release();
                     readWriteOps.poll();
                 }
-                if(count==0)
+                if (count == 0)
                     break;
             }
             sk.interestOps(sk.interestOps() | SelectionKey.OP_WRITE);
@@ -171,17 +210,28 @@ public class NSocket implements Closeable {
     }
 
     public void executeSafe(Runnable r) {
-        if(Thread.currentThread().getId()!=looper.getId()) {
+        if (Thread.currentThread().getId() != looper.getId()) {
             looper.schedule(r);
             return;
-        } 
+        }
         try {
             r.run();
-        } catch(Throwable t) {
-            log.error("Error. Uncatched exception ",t);
+        } catch (Throwable t) {
+            log.error("Error. Uncatched exception ", t);
         }
-        
+
     }
+
+    private void _onEnstablished() {
+        if (enstablishedHandler == null)
+            return;
+        try {
+            enstablishedHandler.onConnectionEstablished(this);
+        } catch (Throwable t) {
+            log.error("Uncatched error", t);
+        }
+    }
+
     private void _onClose() {
         if (closeHanlder == null)
             return;
@@ -234,8 +284,19 @@ public class NSocket implements Closeable {
 
         @Override
         public void onEvent(SelectionKey a) {
-            if (!a.isValid()) {
+            if (!a.isValid())
                 return;
+
+            if (a.isConnectable()) {
+                try {
+                    sc.finishConnect();
+                    sk.interestOps(SelectionKey.OP_READ);
+                    _onEnstablished();
+                } catch (IOException ex) {
+                    _onError(ex);
+                    sendConnectionDown(DOWN_REASON.IO_EXCEPTION);
+                }
+
             }
             if (a.isReadable()) {
                 try {
@@ -251,8 +312,8 @@ public class NSocket implements Closeable {
                 }
             }
             if (a.isValid() && a.isWritable()) {
-                if(!processWriteOps()) {
-                    if(sk.isValid() && state==1) {
+                if (!processWriteOps()) {
+                    if (sk.isValid() && state == 1) {
                         sk.interestOps(sk.interestOps() & (~SelectionKey.OP_WRITE));
                         _onDrain();
                     }
@@ -260,22 +321,24 @@ public class NSocket implements Closeable {
             }
         }
     }
+
     private void checkThread() {
-        if(Thread.currentThread().getId()!=looper.getId()) 
+        if (Thread.currentThread().getId() != looper.getId())
             throw new NotYourThreadException();
     }
     private final LinkedList<WriteOps> readWriteOps = new LinkedList<>();
-    private class NSockOut extends  NOutput {
+
+    private class NSockOut extends NOutput {
 
         private int estimedFrameSize = 4096;
-        
+
         private WriteOps wo;
 
         protected NSockOut() {
             super();
             wo = WriteOps.createFromBBCache(ncontext.getByteBufferCache(), estimedFrameSize);
         }
-        
+
         @Override
         public void flush() {
             if (wo.position() == 0)
@@ -283,11 +346,14 @@ public class NSocket implements Closeable {
             checkThread();
             createWriteOps(estimedFrameSize);
         }
+
         private void appendWriteOps(WriteOps writeOps) {
-            if(writeOps.isOpen())writeOps.closeAndFlip();
+            if (writeOps.isOpen())
+                writeOps.closeAndFlip();
             readWriteOps.add(writeOps);
             processWriteOps();
         }
+
         private void createWriteOps(int size) {
             if (wo.position() == 0)
                 wo.release();
@@ -307,8 +373,10 @@ public class NSocket implements Closeable {
         @Override
         public void write(ByteBuffer bb) {
             checkThread();
-            if(Thread.currentThread().getId()!=looper.getId()) {
-                looper.schedule(()->{flush();});
+            if (Thread.currentThread().getId() != looper.getId()) {
+                looper.schedule(() -> {
+                    flush();
+                });
                 return;
             }
             if (!bb.hasRemaining())

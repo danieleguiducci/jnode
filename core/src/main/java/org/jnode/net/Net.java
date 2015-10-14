@@ -5,6 +5,7 @@
  */
 package org.jnode.net;
 
+import java.net.InetSocketAddress;
 import org.jnode.core.JNode;
 
 /**
@@ -14,6 +15,10 @@ import org.jnode.core.JNode;
 public class Net {
     public static NServerSocket createServer(NSocketServerHandler listener) {
         return JNode.get().getBuilder().createSocketServer(listener);
+    }
+    
+    public static NSocket createSocket() {
+        return JNode.get().getBuilder().createSocket();
     }
     
 }

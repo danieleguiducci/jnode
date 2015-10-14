@@ -5,8 +5,10 @@
  */
 package org.jnode.core.builder;
 
+import java.net.InetSocketAddress;
 import org.jnode.core.JNode.NContext;
 import org.jnode.net.NServerSocket;
+import org.jnode.net.NSocket;
 import org.jnode.net.NSocketServerHandler;
 
 /**
@@ -21,6 +23,9 @@ public final class NBuilder {
     public NServerSocket createSocketServer(NSocketServerHandler listener) {
         return new NServerSocket(context,listener);
     }
-    
+    public NSocket createSocket() {
+        NSocket nsock=new NSocket(context);
+        return nsock;
+    }
 
 }

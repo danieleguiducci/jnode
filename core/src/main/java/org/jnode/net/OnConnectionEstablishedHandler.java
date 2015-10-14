@@ -10,6 +10,6 @@ package org.jnode.net;
  * @author daniele
  */
 @FunctionalInterface
-public interface OnDataHandler {
-    void onDataIncoming(NSocket sock);
+public interface OnConnectionEstablishedHandler {
+    public void onConnectionEstablished(NSocket sock);
 }
